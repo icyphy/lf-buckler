@@ -1,3 +1,7 @@
+src-gen
+.project
+
+# Following is inherited from a C template:
 # Prerequisites
 *.d
 

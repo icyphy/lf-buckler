@@ -1,0 +1,48 @@
+target C {
+    threading: false,
+    cmake: false, // FIXME: build option should disable this.
+    build: "../scripts/build_nrf.sh BucklerLED.lf",
+};
+
+preamble {=
+    #include <stdbool.h>
+    #include <stdint.h>
+    #include <stdio.h>
+
+    #include "app_error.h"
+    #include "nrf.h"
+    #include "nrf_delay.h"
+    #include "nrfx_gpiote.h"
+    #include "nrf_gpio.h"
+    #include "nrf_log.h"
+    #include "nrf_log_ctrl.h"
+    #include "nrf_log_default_backends.h"
+    #include "nrf_pwr_mgmt.h"
+    #include "nrf_serial.h"
+
+    #include "buckler.h"
+
+    #include "display.h"
+
+    static uint8_t LEDS[3] = {BUCKLER_LED0, BUCKLER_LED1, BUCKLER_LED2};
+=}
+
+main reactor {
+    timer t(0, 1 sec);
+    reaction(t) {=
+        // configure leds
+        // manually-controlled (simple) output, initially set
+        nrf_gpio_cfg_output(LEDS[0]);
+        nrf_gpio_cfg_output(LEDS[1]);
+        nrf_gpio_cfg_output(LEDS[2]);
+
+        
+        nrf_gpio_pin_toggle(LEDS[0]);
+        nrf_delay_ms(100);
+        nrf_gpio_pin_toggle(LEDS[1]);
+        nrf_delay_ms(100);
+        nrf_gpio_pin_toggle(LEDS[2]);
+        nrf_delay_ms(100);
+        printf("BUCKLER_LED_TEST\n");
+    =}
+}
