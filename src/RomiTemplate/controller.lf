@@ -1,0 +1,129 @@
+target C {
+    threading: false,
+    cmake: false
+}
+
+preamble {=
+    #include <math.h>
+    #include <stdio.h>
+    #include "controller.h"
+    #include "kobukiSensorTypes.h"
+    #include "display.h"
+
+    static float measure_distance(uint16_t current_encoder, uint16_t previous_encoder) {
+        const float CONVERSION = 0.00065;
+        float result = 0.0;
+        if (current_encoder >= previous_encoder) {
+            result = (float)current_encoder - (float)previous_encoder;
+        } else {
+            result = (float)current_encoder + (0xFFFF - (float)previous_encoder);
+        }
+        return result = result * CONVERSION;
+    }
+
+=}
+
+// all robot state and analysis should occur here
+reactor Sensor {
+    input prev_state:robot_state_t
+    // TODO: pure in and out type
+    input reset:int
+    output out_state:robot_state_t
+    output button:int
+
+    output distance:float
+
+    state start_encoder:uint16_t(0)
+    state prev_encoder:uint16_t(0)
+    state sensors:KobukiSensors_t(0)
+
+    prev_state -> out_state
+
+    // poll here; unpack sensors
+    reaction(prev_state) -> button, distance {=
+        SET(distance, measure_distance(self->prev_encoder, self->start_encoder))
+        kobukiSensorPoll(&(self->sensors));
+        // display distance state
+        char buf[16];
+        snprintf(buf, 16, "%f", distance->value);
+        display_write(buf, DISPLAY_LINE_1);
+        if (is_button_pressed(&(self->sensors))) {
+            SET(button, 1)
+        }
+        self->prev_encoder = self->sensors.leftWheelEncoder;
+    =}
+    reaction(reset) {=
+        self->start_encoder = self->sensors.leftWheelEncoder;
+    =}
+}
+
+reactor States {
+    input prev_state:robot_state_t
+    input button:int
+    input distance:float
+    output new_state:robot_state_t
+    output reset:int
+
+    reaction(startup) -> new_state {=
+        SET(new_state, OFF);   
+    =}
+    // all reactions below
+    // check buttons
+    reaction(button) prev_state -> reset, new_state {=
+        switch(prev_state) {
+            case OFF: {
+                SET(new_state, DRIVING);
+                SET(reset, 1);
+                break;
+            }
+            case DRIVING: {
+                state = OFF;
+            }
+        }
+    =}
+    // check distance
+    reaction(distance) prev_state -> new_state {=
+        if (!(new_state->is_present)) {
+            if (distance->value >= 1) {
+                SET(new_state, OFF);
+            }
+        }
+    =}
+    // default behavior
+    reaction(distance) prev_state -> new_state {=
+        if (!(new_state->is_present)) {
+            switch(prev_state) {
+                case OFF: {
+                    display_write("OFF", DISPLAY_LINE_0);
+                    kobukiDriveDirect(0, 0);
+                    SET(new_state, OFF);
+                    break;
+                }
+                case DRIVING: {
+                    display_write("OFF", DISPLAY_LINE_0);
+                    kobukiDriveDirect(0, 0);
+                    SET(new_state, OFF);
+                    break;
+                }
+            }
+        }
+        
+    =}
+
+    
+}
+
+reactor Controller {
+    input prev_state:robot_state_t
+    output new_state:robot_state_t
+    
+    sensor = new Sensor();
+    states = new States();
+    
+    prev_state -> sensor.prev_state
+    sensor.out_state -> states.prev_state
+    sensor.button -> states.button
+    sensor.distance -> states.distance
+    states.reset -> sensor.reset
+    states.new_state -> new_state
+}
