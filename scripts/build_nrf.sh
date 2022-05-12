@@ -47,4 +47,7 @@ echo "Created $LF_SOURCE_GEN_DIRECTORY/Makefile"
 cd $LF_SOURCE_GEN_DIRECTORY
 make
 
-echo "**** To flash the code onto the device: cd $LF_SOURCE_GEN_DIRECTORY; make flash"
+echo ""
+echo "**** To flash the code onto the device:"
+echo "cd $LF_SOURCE_GEN_DIRECTORY; make flash"
+echo ""

@@ -5,44 +5,36 @@ target C {
 };
 
 preamble {=
-    #include <stdbool.h>
-    #include <stdint.h>
-    #include <stdio.h>
-
-    #include "app_error.h"
-    #include "nrf.h"
-    #include "nrf_delay.h"
-    #include "nrfx_gpiote.h"
-    #include "nrf_gpio.h"
-    #include "nrf_log.h"
-    #include "nrf_log_ctrl.h"
-    #include "nrf_log_default_backends.h"
-    #include "nrf_pwr_mgmt.h"
-    #include "nrf_serial.h"
-
-    #include "buckler.h"
-
-    #include "display.h"
-
-    static uint8_t LEDS[3] = {BUCKLER_LED0, BUCKLER_LED1, BUCKLER_LED2};
+    #include "buckler.h"    // Defines BUCKLER_LED...
+    #include "nrf_gpio.h"   // Defines nrf_gpio...
 =}
 
-main reactor {
-    timer t(0, 1 sec);
-    reaction(t) {=
-        // configure leds
-        // manually-controlled (simple) output, initially set
-        nrf_gpio_cfg_output(LEDS[0]);
-        nrf_gpio_cfg_output(LEDS[1]);
-        nrf_gpio_cfg_output(LEDS[2]);
-
-        
-        nrf_gpio_pin_toggle(LEDS[0]);
-        nrf_delay_ms(100);
-        nrf_gpio_pin_toggle(LEDS[1]);
-        nrf_delay_ms(100);
-        nrf_gpio_pin_toggle(LEDS[2]);
-        nrf_delay_ms(100);
-        printf("BUCKLER_LED_TEST\n");
+/**
+ * Importable reactor that flashes a distinctive pattern.
+ * This can be usefully included in other programs to indicate liveness.
+ */
+reactor FlashingLEDs {
+    timer t1(0 sec, 1 sec);
+    timer t2(0 sec, 2 sec);
+    timer t3(0 sec, 3 sec);
+    reaction(startup) {=
+        // Configure LEDs by defining their GPIO pins as outputs.
+        // Initially, the LEDs will be on.
+        nrf_gpio_cfg_output(BUCKLER_LED0);
+        nrf_gpio_cfg_output(BUCKLER_LED1);
+        nrf_gpio_cfg_output(BUCKLER_LED2);
     =}
+    reaction(t1) {=
+        nrf_gpio_pin_toggle(BUCKLER_LED0);
+    =}
+    reaction(t2) {=
+        nrf_gpio_pin_toggle(BUCKLER_LED1);
+    =}
+    reaction(t3) {=
+        nrf_gpio_pin_toggle(BUCKLER_LED2);
+    =}
+}
+
+main reactor {
+    a = new FlashingLEDs();
 }
