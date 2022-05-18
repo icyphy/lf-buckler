@@ -34,7 +34,8 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nrf_delay.h"
 #include "nrf.h"
-#include "nrf_mtx.h"
+#include "nrf_drv_timer.h"
+#include "app_error.h"
 
 #ifdef NUMBER_OF_WORKERS
 #if __STDC_VERSION__ < 201112L || defined (__STDC_NO_THREADS__) // (Not C++11 or later) or no threads support
@@ -46,6 +47,7 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 #endif
 
+//const nrfx_timer_t TIMER_LF = NRFX_TIMER_INSTANCE(4);
 
 /**
  * Offset to _LF_CLOCK that would convert it
@@ -91,15 +93,29 @@ void calculate_epoch_offset() {
  * Initialize the LF clock.
  */
 void lf_initialize_clock() {
-    // Initialize TIMER4 as a free running timer
+    // Initialize TIMER3 as a free running timer
     // 1) Set to be a 32 bit timer
     // 2) Set to count at 1MHz
     // 3) Clear the timer
     // 4) Start the timer
-    NRF_TIMER4->BITMODE = 3;
-    NRF_TIMER4->PRESCALER = 4;
-    NRF_TIMER4->TASKS_CLEAR = 1;
-    NRF_TIMER4->TASKS_START = 1;
+    
+    NRF_TIMER3->BITMODE = 3;
+    NRF_TIMER3->PRESCALER = 4;
+    NRF_TIMER3->TASKS_CLEAR = 1;
+    NRF_TIMER3->TASKS_START = 1;
+    
+    /**
+    uint32_t err_code = NRF_SUCCESS;
+    nrfx_timer_config_t timer_conf = NRFX_TIMER_DEFAULT_CONFIG;
+    timer_conf.frequency = NRF_TIMER_FREQ_1MHz;
+    timer_conf.mode = NRF_TIMER_MODE_TIMER;
+    timer_conf.bit_width = NRF_TIMER_BIT_WIDTH_32;
+    
+    err_code = nrfx_timer_init(&TIMER_LF, &timer_conf, NULL);
+    APP_ERROR_CHECK(err_code);
+    nrfx_timer_clear(&TIMER_LF);
+    nrfx_timer_enable(&TIMER_LF);
+    **/
 }
 
 /**
@@ -116,10 +132,10 @@ int lf_clock_gettime(instant_t* t) {
         // errno = EFAULT; //TODO: why does this not work with new build process?
         return -1;
     }
-
-    NRF_TIMER4->TASKS_CAPTURE[1] = 1;
-    instant_t tp_in_us = (instant_t)(NRF_TIMER4->CC[1]);
-
+    
+    NRF_TIMER3->TASKS_CAPTURE[1] = 1;
+    instant_t tp_in_us = (instant_t)(NRF_TIMER3->CC[1]);
+    //instant_t tp_in_us = (instant_t)(nrfx_timer_capture(&TIMER_LF, 1));
     *t = tp_in_us * 1000 + _lf_epoch_offset;
     return 0;
 }
