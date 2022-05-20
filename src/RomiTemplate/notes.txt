@@ -24,3 +24,10 @@ must place kobuki init with main loop
     must be about clock initializations
         init the one timer messes with the serial timer?
 
+
+issues
+cant use schedule
+the issue with error_print_and_exit
+    deprecated functions
+    
+

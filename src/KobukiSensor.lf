@@ -1,0 +1,117 @@
+target C {
+    threading: false,
+    cmake: false,
+    build: "../scripts/build_nrf_unix.sh"   
+};
+
+import Init from "RobotInit.lf"
+
+preamble {=
+    #include <math.h>
+    #include <stdbool.h>
+    #include <stdint.h>
+    #include <stdio.h>
+
+    #include "app_error.h"
+    #include "app_timer.h"
+    #include "nrf.h"
+    #include "nrf_delay.h"
+    #include "nrf_gpio.h"
+    #include "nrf_log.h"
+    #include "nrf_log_ctrl.h"
+    #include "nrf_log_default_backends.h"
+    #include "nrf_pwr_mgmt.h"
+    #include "nrf_drv_spi.h"
+
+    #include "buckler.h"
+    #include "display.h"
+    #include "kobukiActuator.h"
+    #include "kobukiSensorPoll.h"
+    #include "kobukiSensorTypes.h"
+    #include "kobukiUtilities.h"
+    #include "lsm9ds1.h"
+
+    KobukiSensors_t sensor_cache;
+=}
+
+reactor Robot {
+    input clck:int;
+    reaction (clck) {=
+        kobukiSensorPoll(&sensor_cache);
+        // print results
+        printf("\n");
+        printf("### Kobuki Sensor Values ###\n");
+        printf("Wheel drop left:\t%d\n", sensor_cache.bumps_wheelDrops.wheeldropLeft);
+        printf("Wheel drop right:\t%d\n", sensor_cache.bumps_wheelDrops.wheeldropRight);
+        printf("\n");
+        printf("Bump left:\t%d\n", sensor_cache.bumps_wheelDrops.bumpLeft);
+        printf("Bump center:\t%d\n", sensor_cache.bumps_wheelDrops.bumpCenter);
+        printf("Bump right:\t%d\n", sensor_cache.bumps_wheelDrops.bumpRight);
+        printf("\n");
+        printf("Cliff left:\t%d\n", sensor_cache.cliffLeft);
+        printf("Cliff center:\t%d\n", sensor_cache.cliffCenter);
+        printf("Cliff right:\t%d\n", sensor_cache.cliffRight);
+        printf("\n");
+        printf("Button 0:\t%d\n", sensor_cache.buttons.B0);
+        printf("Button 1:\t%d\n", sensor_cache.buttons.B1);
+        printf("Button 2:\t%d\n", sensor_cache.buttons.B2);
+        printf("\n");
+        printf("Encoder left:\t%d\n", sensor_cache.leftWheelEncoder);
+        printf("Encoder right\t%d\n", sensor_cache.rightWheelEncoder);
+        printf("\n");
+        printf("Current left:\t%d\n", sensor_cache.leftWheelCurrent);
+        printf("Current right\t%d\n", sensor_cache.rightWheelCurrent);
+        printf("\n");
+        printf("PWM left:\t%d\n", sensor_cache.leftWheelPWM);
+        printf("PWM right\t%d\n", sensor_cache.rightWheelPWM);
+        printf("\n");
+        printf("Over current left:\t%d\n", sensor_cache.leftWheelOverCurrent);
+        printf("Over current right\t%d\n", sensor_cache.rightWheelOverCurrent);
+        printf("\n");
+        printf("Battery voltage:\t%d\n", sensor_cache.batteryVoltage);
+        printf("Charging state:\t%d\n", sensor_cache.chargingState);
+        printf("\n");
+        printf("Angle:\t%d\n", sensor_cache.angle);
+        printf("Rate:\t%d\n", sensor_cache.angleRate);
+
+    =}
+    initial mode OFF {
+        reaction(clck) -> DRIVE {=
+            if (is_button_pressed(&sensor_cache)) {
+                SET_MODE(DRIVE);
+            } else {
+                display_write("OFF", DISPLAY_LINE_0);
+                kobukiDriveDirect(0, 0);
+            }
+        =}
+    }
+    mode DRIVE {
+        reaction(clck) -> OFF {=
+            if (is_button_pressed(&sensor_cache)) {
+                SET_MODE(OFF);
+            } else {
+                display_write("DRIVE", DISPLAY_LINE_0);
+                kobukiDriveDirect(60, 60);
+            }
+        =}
+    }
+}
+
+
+
+main reactor {
+    initial mode SETUP {
+        init = new Init();
+        reaction(init.err_out) -> RUN {=
+            SET_MODE(RUN);
+        =}
+    }
+    mode RUN {
+        timer t(0, 500 msec);
+        robot = new Robot();
+        reaction(t) -> robot.clck {=
+            SET(robot.clck, 1);
+        =}
+    }
+
+}
