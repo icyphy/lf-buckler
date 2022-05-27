@@ -28,22 +28,29 @@ preamble {=
     #include "kobukiSensorTypes.h"
     #include "kobukiUtilities.h"
     #include "lsm9ds1.h"
+    #include "simple_ble.h"
 
-    #define DRV_POWER 75
 
-    KobukiSensors_t sensor_cache;
-    NRF_TWI_MNGR_DEF(twi_mngr_instance, 5, 0);
-    const nrf_drv_spi_t spi_instance = NRF_DRV_SPI_INSTANCE(1);
+    // Intervals for advertising and connections
+    static simple_ble_config_t ble_config = {
+            // c0:98:e5:49:xx:xx
+            .platform_id       = 0x49,    // used as 4th octect in device BLE address
+            .device_id         = 0xFFFF, // TODO: replace with your lab bench number
+            .adv_name          = "NRF_BOARD", // used in advertisements if there is room
+            .adv_interval      = MSEC_TO_UNITS(100, UNIT_0_625_MS),
+            .min_conn_interval = MSEC_TO_UNITS(100, UNIT_1_25_MS),
+            .max_conn_interval = MSEC_TO_UNITS(200, UNIT_1_25_MS),
+    };
+
+    const simple_ble_app_t* simple_ble_app;
+
 =}
 
-reactor Robot {
+reactor Board {
     input clck:int;
-    logical action btn;
-    logical action turn_fin;
-    state prev_angle:int;
 
     initial mode INIT {
-        reaction(startup) -> OFF {=
+        reaction(startup) -> LOOP {=
             ret_code_t error_code = NRF_SUCCESS;
 
             // initialize RTT library
@@ -85,6 +92,8 @@ reactor Robot {
             lsm9ds1_init(&twi_mngr_instance);
             printf("IMU initialized!\n");
 
+            //
+
             // initialize Kobuki
             kobukiInit();
             printf("Kobuki initialized!\n");
@@ -93,62 +102,23 @@ reactor Robot {
             }
         =}
     }
-
-    // sensor poll reaction
-    reaction(clck) {=
-        kobukiSensorPoll(&sensor_cache);
-        if (is_button_pressed(&sensor_cache)) {
-            lf_schedule(btn);
-        }
-        if (abs(self->prev_angle - sensor_cache.angle) >= 8500){
-            lf_schedule(turn_fin);
-        }
-    =}
-
-    mode OFF {
+    mode LOOP {
         reaction(clck) {=
-            display_write("OFF", DISPLAY_LINE_0);
-            kobukiDriveDirect(0, 0);
+            uint32_t btn_state = nrf_gpio_pin_read(BTN_1);
+            if (btn_state) {
+                nrf_gpio_pin_set(LED_1);
+            } else {
+                nrf_gpio_pin_clear(LED_1);
+            }
+            simple_ble_adv_manuf_data((uint8_t*) &btn_state, sizeof(btn_state));
         =}
-        reaction(btn) -> DRIVE {=
-            SET_MODE(DRIVE);
-        =}
-    }
-    mode DRIVE {
-        timer t(2 sec, 0);
-        reaction(clck) {=
-            display_write("DRIVE", DISPLAY_LINE_0);
-            kobukiDriveDirect(60, 60);
-        =}
-        reaction(t) -> TURNING {=
-            self->prev_angle = sensor_cache.angle
-            SET_MODE(TURNING);
-        =}
-        reaction(btn) -> OFF {=
-            SET_MODE(DRIVE);
-        =}
-    }
-    mode TURNING {
-        reaction(clck) {=
-            display_write("TURNING", DISPLAY_LINE_0);
-            kobukiDriveDirect(-60, 60);
-        =}
-        reaction(btn) -> OFF {=
-            SET_MODE(OFF);
-        =}
-        reaction(turn_fin) -> DRIVE {=
-            SET_MODE(DRIVE);
-        =}
-
     }
 }
 
-
-
 main reactor {
-    timer t(1 sec, 10 msec);
-    robot = new Robot();
-    reaction(t) -> robot.clck {=
-        SET(robot.clck, 1);
+    timer t(0, 10 msec);
+    board = new Board();
+    reaction(t) -> board.clck {=
+        SET(board.clck, 1);
     =}
 }

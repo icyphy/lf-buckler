@@ -29,8 +29,6 @@ preamble {=
     #include "kobukiUtilities.h"
     #include "lsm9ds1.h"
 
-    #define DRV_POWER 75
-
     KobukiSensors_t sensor_cache;
     NRF_TWI_MNGR_DEF(twi_mngr_instance, 5, 0);
     const nrf_drv_spi_t spi_instance = NRF_DRV_SPI_INSTANCE(1);
@@ -38,8 +36,12 @@ preamble {=
 
 reactor Robot {
     input clck:int;
+    
+    # ACTIONS
     logical action btn;
-    logical action turn_fin;
+    physical action ble_trigger;
+    
+    # STATES
     state prev_angle:int;
 
     initial mode INIT {
@@ -94,7 +96,8 @@ reactor Robot {
         =}
     }
 
-    // sensor poll reaction
+    // POLL SENSORS HERE
+    // schedule any actions defined above
     reaction(clck) {=
         kobukiSensorPoll(&sensor_cache);
         if (is_button_pressed(&sensor_cache)) {
@@ -105,6 +108,7 @@ reactor Robot {
         }
     =}
 
+    // MODES
     mode OFF {
         reaction(clck) {=
             display_write("OFF", DISPLAY_LINE_0);
@@ -115,35 +119,16 @@ reactor Robot {
         =}
     }
     mode DRIVE {
-        timer t(2 sec, 0);
         reaction(clck) {=
             display_write("DRIVE", DISPLAY_LINE_0);
             kobukiDriveDirect(60, 60);
         =}
-        reaction(t) -> TURNING {=
-            self->prev_angle = sensor_cache.angle
-            SET_MODE(TURNING);
-        =}
-        reaction(btn) -> OFF {=
-            SET_MODE(DRIVE);
-        =}
-    }
-    mode TURNING {
-        reaction(clck) {=
-            display_write("TURNING", DISPLAY_LINE_0);
-            kobukiDriveDirect(-60, 60);
-        =}
         reaction(btn) -> OFF {=
             SET_MODE(OFF);
         =}
-        reaction(turn_fin) -> DRIVE {=
-            SET_MODE(DRIVE);
-        =}
-
     }
+  
 }
-
-
 
 main reactor {
     timer t(1 sec, 10 msec);

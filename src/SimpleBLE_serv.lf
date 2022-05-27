@@ -1,0 +1,131 @@
+target C {
+    threading: false,
+    cmake: false,
+    build: "../scripts/build_nrf_unix.sh"   
+};
+
+preamble {=
+    #include <math.h>
+    #include <stdbool.h>
+    #include <stdint.h>
+    #include <stdio.h>
+
+    #include "app_error.h"
+    #include "app_timer.h"
+    #include "nrf.h"
+    #include "nrf_delay.h"
+    #include "nrf_gpio.h"
+    #include "nrf_log.h"
+    #include "nrf_log_ctrl.h"
+    #include "nrf_log_default_backends.h"
+    #include "nrf_pwr_mgmt.h"
+    #include "nrf_drv_spi.h"
+
+    #include "simple_ble.h"
+
+    // actuators
+    #define LED_1 NRF_GPIO_PIN_MAP(0, 17)
+
+    // sensors
+    #define BTN_1 NRF_GPIO_PIN_MAP(0, 13)
+
+
+    // NOTE: UUID Generator https://www.uuidgenerator.net/
+
+    // Intervals for advertising and connection
+    static simple_ble_config_t ble_config = {
+            // c0:98:e5:49:xx:xx
+            .platform_id       = 0x49,    // used as 4th octect in device BLE address
+            .device_id         = 0xAABB, // TODO: replace with your lab bench number
+            .adv_name          = "NRF_BOARD", // used in advertisements if there is room
+            .adv_interval      = MSEC_TO_UNITS(1000, UNIT_0_625_MS),
+            .min_conn_interval = MSEC_TO_UNITS(500, UNIT_1_25_MS),
+            .max_conn_interval = MSEC_TO_UNITS(1000, UNIT_1_25_MS),
+    };
+
+    //0322efc0-c024-4ad5-b1b2-6295bec40bfa
+    static simple_ble_service_t demo_service = {{
+    .uuid128 = {0xfa,0x0b,0xc4,0xbe,0x95,0x62,0xb2,0xb1,
+                0xd5,0x4a,0x24,0xc0,0xc0,0xef,0x22,0x03}
+    }};
+
+    static simple_ble_char_t  led_state_char = {.uuid16 = 0x728a};
+    static simple_ble_char_t btn_state_char = {.uuid16 = 0x4940};
+    static bool led_state = false;
+    static bool btn_state = false;
+
+    simple_ble_app_t* simple_ble_app;
+=}
+
+
+
+reactor Board {
+    input clck:int;
+
+    initial mode INIT {
+        reaction(startup) -> LOOP {=
+            ret_code_t error_code = NRF_SUCCESS;
+
+            // initialize RTT library
+            error_code = NRF_LOG_INIT(NULL);
+            APP_ERROR_CHECK(error_code);
+            NRF_LOG_DEFAULT_BACKENDS_INIT();
+            printf("Log initialized!\n");
+
+            // initialize pins
+            nrf_gpio_cfg_output(LED_1);
+            nrf_gpio_cfg_input(BTN_1, NRF_GPIO_PIN_PULLUP);
+
+            // setup ble
+            simple_ble_app = simple_ble_init(&ble_config);
+            simple_ble_add_service(&demo_service);
+            // led char
+            simple_ble_add_characteristic(1, 1, 0, 0,
+                sizeof(led_state), (uint8_t*)&led_state, 
+                &demo_service, &led_state_char);
+
+            // button char
+            simple_ble_add_characteristic(1, 1, 0, 0,
+                sizeof(btn_state), (uint8_t*)&btn_state, 
+                &demo_service, &btn_state_char);
+
+            // start advertising
+            simple_ble_adv_only_name();
+
+            if (error_code == NRF_SUCCESS) {
+                SET_MODE(LOOP);         
+            }
+        =}
+    }
+    mode LOOP {
+        reaction(clck) {=
+            btn_state = !(nrf_gpio_pin_read(BTN_1));
+            if (led_state || btn_state) {
+                nrf_gpio_pin_clear(LED_1);
+            } else {
+                nrf_gpio_pin_set(LED_1);
+            }
+            power_manage();
+        =}
+    }
+}
+
+main reactor {
+    physical action ble_toggle;
+    preamble {=
+        // ble char write callback
+        // TODO: support async write; need to support threads
+        void ble_evt_write(ble_evt_t const* p_ble_evt) {
+            if (simple_ble_is_char_event(p_ble_evt, &led_state_char)) {
+                lf_schedule(ble_toggle)
+            }
+        }
+        
+    =}
+    
+    timer t(0, 10 msec);
+    board = new Board();
+    reaction(t) -> board.clck {=
+        SET(board.clck, 1);
+    =}
+}
