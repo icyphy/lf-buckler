@@ -1,4 +1,4 @@
-/* Platform API support for the C target of Lingua Franca. */
+/* Variant of the API support for the C target for nRF52x + Buckler. */
 
 /*************
 Copyright (c) 2021, The University of California at Berkeley.
@@ -22,17 +22,8 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /**
  * Platform API support for the C target of Lingua Franca.
- * This file detects the platform on which the C compiler is being run
- * (e.g. Windows, Linux, Mac) and conditionally includes platform-specific
- * files that define core datatypes and function signatures for Lingua Franca.
- * For example, the type instant_t represents a time value (long long on
- * most of the platforms). The conditionally included files define a type
- * _instant_t, and this file defines the type instant_t to be whatever
- * the included defines _instant_t to be. All platform-independent code
- * in Lingua Franca, therefore, should use the type instant_t for time
- * values.
- *  
- * @author{Soroush Bateni <soroush@utdallas.edu>}
+ * This file is a variant for the C target for nRF52x + Buckler,
+ * based on the generic platform.h in LF.
  */
 
 #ifndef PLATFORM_H
