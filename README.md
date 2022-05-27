@@ -2,6 +2,35 @@
 
 This repo provides resources for using Lingua Franca to program an nRF52x Thread/BLE embedded board from Nordic Semiconductor with a Berkeley Buckler daughter card.
 
+## VM Setup Instructions
+This set of instructions will guide a user on how to setup the EECS149 Lab VM to be able to use Lingua Franca. The installation requires sudo permissions on the vm.
+
+### Java Installation
+Java 17 or above is required for Lingua Franca code generation. We will use the following.
+
+```
+sudo apt update && sudo apt upgrade -y
+sudo apt-get install openjdk-17-jre
+sudo apt-get install openjdk-17-jdk
+```
+
+### Lingua Franca Compiler
+Get the latest lingua franca compiler and add it to PATH. Replace with latest verision. Do this in your home directory.
+```
+wget https://github.com/lf-lang/lingua-franca/releases/download/v0.2.0/lfc_0.2.0.tar.gz
+tar xvf lfc_0.2.0.tar.gz
+./lfc_0.2.0/bin/lfc --version
+```
+Add the compiler to path. There are many ways to do this. The instructions below use .bashrc.
+```
+vim ~/.bashrc
+```
+Add the following to the botton of the file. The run the source command to load into current shell instance.
+```
+export PATH="$HOME/lfc_0.2.0/bin/lfc:$PATH"
+source ~/.bashrc
+```
+
 ## Clone this Repository
 
 ```
