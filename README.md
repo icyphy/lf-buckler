@@ -15,11 +15,11 @@ sudo apt-get install openjdk-17-jdk
 ```
 
 ### Lingua Franca Compiler
-Get the latest lingua franca compiler and add it to PATH. Replace with latest verision. Do this in your home directory.
+Get the latest lingua franca compiler and add it to PATH. Replace with latest verision. Do this in your home directory. [LFC Releases](https://github.com/lf-lang/lingua-franca/releases).
 ```
-wget https://github.com/lf-lang/lingua-franca/releases/download/v0.2.0/lfc_0.2.0.tar.gz
-tar xvf lfc_0.2.0.tar.gz
-./lfc_0.2.0/bin/lfc --version
+wget <lfc_link>
+tar xvf lfc_<version>.tar.gz
+./lfc_<version>/bin/lfc --version
 ```
 Add the compiler to path. There are many ways to do this. The instructions below use .bashrc.
 ```
@@ -63,7 +63,7 @@ cd src
 lfc BucklerLED.lf 
 ```
 
-You should see something like this:
+You should see something like this. Code will be auto flashed onto device if connected.
 
 ```
 Generating code for: file:/Users/eal/git/lf-buckler/src/BucklerLED.lf
