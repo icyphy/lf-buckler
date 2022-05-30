@@ -100,28 +100,29 @@ reactor Board {
     mode LOOP {
         reaction(clck) {=
             btn_state = !(nrf_gpio_pin_read(BTN_1));
-            if (led_state || btn_state) {
+            if (led_state) {
                 nrf_gpio_pin_clear(LED_1);
             } else {
                 nrf_gpio_pin_set(LED_1);
             }
-            power_manage();
         =}
     }
 }
 
 main reactor {
+    /**
     physical action ble_toggle;
     preamble {=
         // ble char write callback
         // TODO: support async write; need to support threads
         void ble_evt_write(ble_evt_t const* p_ble_evt) {
             if (simple_ble_is_char_event(p_ble_evt, &led_state_char)) {
-                lf_schedule(ble_toggle)
+                lf_schedule(ble_toggle);
             }
         }
         
     =}
+    **/
     
     timer t(0, 10 msec);
     board = new Board();

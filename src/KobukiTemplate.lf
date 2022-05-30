@@ -37,11 +37,11 @@ preamble {=
 reactor Robot {
     input clck:int;
     
-    # ACTIONS
+    // ACTIONS
+    // define any actions that prempt reactions
     logical action btn;
-    physical action ble_trigger;
-    
-    # STATES
+
+    // STATES
     state prev_angle:int;
 
     initial mode INIT {
@@ -98,22 +98,21 @@ reactor Robot {
 
     // POLL SENSORS HERE
     // schedule any actions defined above
-    reaction(clck) {=
+    reaction(clck) -> btn {=
         kobukiSensorPoll(&sensor_cache);
         if (is_button_pressed(&sensor_cache)) {
-            lf_schedule(btn);
-        }
-        if (abs(self->prev_angle - sensor_cache.angle) >= 8500){
-            lf_schedule(turn_fin);
+            lf_schedule(btn, 0);
         }
     =}
 
     // MODES
     mode OFF {
+        // default behavior
         reaction(clck) {=
             display_write("OFF", DISPLAY_LINE_0);
             kobukiDriveDirect(0, 0);
         =}
+        // 
         reaction(btn) -> DRIVE {=
             SET_MODE(DRIVE);
         =}

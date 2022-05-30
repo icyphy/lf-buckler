@@ -31,3 +31,9 @@ the issue with error_print_and_exit
     deprecated functions
     
 
+for some reason the make file is not using the schedule.c library
+look at make rules
+might have to do with internal lf make
+    ask marten or shoakai where to look
+        or find?
+

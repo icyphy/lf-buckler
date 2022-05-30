@@ -7,4 +7,7 @@
 #endif
 
 #include "core/platform/lf_nRF52832_support.c"
-
+#include "lib/schedule.c"
+#include "lib/tag.c"
+#include "lib/time.c"
+#include "lib/util.c"

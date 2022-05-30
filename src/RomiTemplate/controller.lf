@@ -25,35 +25,37 @@ preamble {=
 
 // all robot state and analysis should occur here
 reactor Sensor {
-    input prev_state:robot_state_t
     // TODO: pure in and out type
+    input clck:int;
     input reset:int;
-    output out_state:robot_state_t;
-    output button:int;
 
-    output distance:float;
+    logical action poll;
+    
+    output btn:int;
+    output dist:float;
 
     state start_encoder:uint16_t(0);
-    state prev_encoder:uint16_t(0);
     
-
-    prev_state -> out_state;
-
     // poll here; unpack sensors
-    reaction(prev_state) -> button, distance {=
+    reaction(clck) -> poll {=
         float temp;
         printf("Sensors Poll\n");
         kobukiSensorPoll(&sensors);
-        temp = measure_distance(self->prev_encoder, self->start_encoder);
-        SET(distance, temp);
+        lf_schedule(poll, MSEC(1));
+    =}
+    // 
+    reaction(poll) -> btn {=
+        if (is_button_pressed(&(sensors))) {
+            SET(btn, 1);
+        }
+    =}
+    reaction(poll) -> dist {=
+        temp = measure_distance(sensors.leftWheelEncoder, self->start_encoder);
+        SET(dist, temp);
         // display distance state
         char buf[16];
         snprintf(buf, 16, "%f", distance->value);
         display_write(buf, DISPLAY_LINE_1);
-        if (is_button_pressed(&(sensors))) {
-            SET(button, 1);
-        }
-        self->prev_encoder = sensors.leftWheelEncoder;
     =}
     reaction(reset) {=
         self->start_encoder = self->prev_encoder;
@@ -61,69 +63,46 @@ reactor Sensor {
 }
 
 reactor States {
-    input prev_state:robot_state_t;
-    input button:int;
-    input distance:float;
-    output new_state:robot_state_t;
+    input clck:int;
+    input btn:int;
+    input dist:float;
     output reset:int;
 
-    // all reactions below
-    // check buttons
-    reaction(button) prev_state -> reset, new_state {=
-        switch(prev_state->value) {
-            case OFF: {
-                SET(new_state, DRIVING);
-                SET(reset, 1);
-                break;
-            }
-            case DRIVING: {
-                SET(new_state, OFF);
-            }
-        }
-    =}
-    // check distance
-    reaction(distance) prev_state -> new_state {=
-        if (!(new_state->is_present)) {
-            if (distance->value >= 1) {
-                SET(new_state, OFF);
-            }
-        }
-    =}
-    // default behavior
-    reaction(distance) prev_state -> new_state {=
-        if (!(new_state->is_present)) {
-            switch(prev_state->value) {
-                case OFF: {
-                    display_write("OFF", DISPLAY_LINE_0);
-                    kobukiDriveDirect(0, 0);
-                    SET(new_state, OFF);
-                    break;
-                }
-                case DRIVING: {
-                    display_write("DRIVING", DISPLAY_LINE_0);
-                    kobukiDriveDirect(100, 100);
-                    SET(new_state, DRIVING);
-                    break;
-                }
-            }
-        }
-        
-    =}
+    // MODES
+    initial mode OFF {
+        // default behavior
+        reaction(clck) {=
+            display_write("OFF", DISPLAY_LINE_0);
+            kobukiDriveDirect(0, 0);
+        =}
+        // 
+        reaction(btn) -> DRIVE {=
+            SET_MODE(DRIVE);
+        =}
+    }
+    mode DRIVE {
+        reaction(clck) {=
+            display_write("DRIVE", DISPLAY_LINE_0);
+            kobukiDriveDirect(60, 60);
+        =}
+        reaction(btn) -> OFF {=
+            SET_MODE(OFF);
+        =}
+    }
 
     
 }
 
 reactor Controller {
-    input prev_state:robot_state_t;
-    output new_state:robot_state_t;
-    
+    input clck:int;
+
     r_sensor = new Sensor();
     r_states = new States();
+
+    clck -> r_sensor.clck;
+    clck -> r_states.clck;
     
-    prev_state -> r_sensor.prev_state
-    r_sensor.out_state -> r_states.prev_state
-    r_sensor.button -> r_states.button
-    r_sensor.distance -> r_states.distance
-    r_states.reset -> r_sensor.reset
-    r_states.new_state -> new_state
+    r_sensor.btn -> r_states.btn;
+    r_sensor.dist -> r_states.dist;
+    r_states.reset -> r_sensor.reset;
 }

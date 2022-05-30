@@ -38,10 +38,8 @@ preamble {=
 
 reactor Robot {
     input clck:int;
-    
     logical action btn;
     logical action turn_fin;
-    state prev_angle:int;
 
     initial mode INIT {
         reaction(startup) -> OFF {=
@@ -96,13 +94,10 @@ reactor Robot {
     }
 
     // sensor poll reaction
-    reaction(clck) -> btn, turn_fin {=
+    reaction(clck) -> btn {=
         kobukiSensorPoll(&sensor_cache);
         if (is_button_pressed(&sensor_cache)) {
             lf_schedule(btn, 0);
-        }
-        if (abs(self->prev_angle - sensor_cache.angle) >= 8500){
-            lf_schedule(turn_fin, 0);
         }
     =}
 
@@ -116,13 +111,13 @@ reactor Robot {
         =}
     }
     mode DRIVE {
-        timer t(2 sec, 0);
+        timer drive_t(2 sec, 0);
         reaction(clck) {=
             display_write("DRIVE", DISPLAY_LINE_0);
             kobukiDriveDirect(60, 60);
         =}
-        reaction(t) -> TURNING {=
-            self->prev_angle = sensor_cache.angle;
+        reaction(drive_t) -> TURNING {=
+            lsm9ds1_start_gyro_integration();
             SET_MODE(TURNING);
         =}
         reaction(btn) -> OFF {=
@@ -130,22 +125,31 @@ reactor Robot {
         =}
     }
     mode TURNING {
-        reaction(clck) {=
+        reaction(clck) -> turn_fin {=
             display_write("TURNING", DISPLAY_LINE_0);
             kobukiDriveDirect(-60, 60);
+            lsm9ds1_measurement_t angle = lsm9ds1_read_gyro_integration();
+            if (abs(angle.z_axis) >= 85) {
+                lf_schedule(turn_fin, 0);
+            }
         =}
         reaction(btn) -> OFF {=
+            lsm9ds1_stop_gyro_integration();
             SET_MODE(OFF);
         =}
         reaction(turn_fin) -> DRIVE {=
+            lsm9ds1_stop_gyro_integration();
             SET_MODE(DRIVE);
         =}
+
     }
 }
 
 
 
 main reactor {
+    // TODO: here we wait arbitrary till init complete
+    // ensures first poll occurs after init
     timer t(1 sec, 10 msec);
     robot = new Robot();
     reaction(t) -> robot.clck {=
