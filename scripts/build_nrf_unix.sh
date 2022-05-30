@@ -28,6 +28,10 @@ SDK_VERSION = 15
 SOFTDEVICE_MODEL = s132
 
 # LF Sources and Headers
+APP_SOURCES += $(notdir lf_nRF52832_support.c)
+APP_SOURCES += $(notdir $(wildcard ./lib/*.c))
+APP_SOURCE_PATHS += ./core/platform/
+APP_SOURCE_PATHS += ./lib/
 
 # Source and header files
 APP_HEADER_PATHS += .
