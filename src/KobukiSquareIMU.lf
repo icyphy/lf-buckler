@@ -39,7 +39,6 @@ preamble {=
 reactor Robot {
     input clck:int;
     logical action btn;
-    logical action turn_fin;
 
     initial mode INIT {
         reaction(startup) -> OFF {=
@@ -125,6 +124,7 @@ reactor Robot {
         =}
     }
     mode TURNING {
+        logical action turn_fin;
         reaction(clck) -> turn_fin {=
             display_write("TURNING", DISPLAY_LINE_0);
             kobukiDriveDirect(-60, 60);
