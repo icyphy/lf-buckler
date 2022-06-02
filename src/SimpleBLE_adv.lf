@@ -47,6 +47,7 @@ preamble {=
     };
 
     simple_ble_app_t* simple_ble_app;
+    uint8_t btn_states[4];
 =}
 
 
@@ -71,7 +72,6 @@ reactor Board {
             nrf_gpio_cfg_input(BTN_3, NRF_GPIO_PIN_PULLUP);
             nrf_gpio_cfg_input(BTN_4, NRF_GPIO_PIN_PULLUP);
 
-
             // setup ble
             simple_ble_app = simple_ble_init(&ble_config);
 
@@ -84,9 +84,8 @@ reactor Board {
         =}
     }
     mode LOOP {
-        state led_state:bool;
         reaction(clck) {=
-            uint8_t btn_states[4];
+            printf("DEBUG: clck");
             btn_states[0] = nrf_gpio_pin_read(BTN_1);
             btn_states[1] = nrf_gpio_pin_read(BTN_2);
             btn_states[2] = nrf_gpio_pin_read(BTN_3);
@@ -102,7 +101,7 @@ reactor Board {
 }
 
 main reactor {
-    timer t(0, 10 msec);
+    timer t(0, 50 msec);
     board = new Board();
     reaction(t) -> board.clck {=
         SET(board.clck, 1);

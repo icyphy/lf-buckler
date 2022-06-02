@@ -4,6 +4,13 @@ target C {
     build: "../scripts/build_nrf_unix.sh"   
 };
 
+/**
+* Kobuki BLE Service Demo
+* The demo advertises current encoder values
+* uses written service characteristics to determine state
+* of driving base
+**/
+
 preamble {=
     #include <math.h>
     #include <stdbool.h>
@@ -30,23 +37,30 @@ preamble {=
     #include "lsm9ds1.h"
     #include "simple_ble.h"
 
+    // NOTE: UUID Generator https://www.uuidgenerator.net/
 
     // Intervals for advertising and connections
     static simple_ble_config_t ble_config = {
             // c0:98:e5:49:xx:xx
             .platform_id       = 0x49,    // used as 4th octect in device BLE address
-            .device_id         = 0xFFFF, // TODO: replace with your lab bench number
-            .adv_name          = "NRF_BOARD", // used in advertisements if there is room
+            .device_id         = 0xAABB, // TODO: replace with your lab bench number
+            .adv_name          = "ROMI", // used in advertisements if there is room
             .adv_interval      = MSEC_TO_UNITS(100, UNIT_0_625_MS),
             .min_conn_interval = MSEC_TO_UNITS(100, UNIT_1_25_MS),
             .max_conn_interval = MSEC_TO_UNITS(200, UNIT_1_25_MS),
     };
 
+    //85e43f4d-b4a7-4c6f-ba86-2db3c40a2c83
+    static simple_ble_service_t kobuki_service = {{
+        .uuid128 = {0x83,0x2c,0x0a,0xc4,0xb3,0x2d,0x86,0xba,
+                    0x6f,0x4c,0xa7,0xb4,0x4d,0x3f,0xe4,0x85}
+    }};
+    static simple_ble_char_t drive_state_char = {.uuid16 = 0x7182};
+    static simple_ble_char_t sensor_state_char = {.uuid16 = 0x448d};
     const simple_ble_app_t* simple_ble_app;
-
 =}
 
-reactor Board {
+reactor Robot {
     input clck:int;
 
     initial mode INIT {
@@ -92,7 +106,21 @@ reactor Board {
             lsm9ds1_init(&twi_mngr_instance);
             printf("IMU initialized!\n");
 
-            //
+            // setup ble
+            simple_ble_app = simple_ble_init(&ble_config);
+            simple_ble_add_service(&kobuki_service);
+            // led char
+            simple_ble_add_characteristic(1, 1, 0, 0,
+                sizeof(led_state), (uint8_t*)&led_state, 
+                &demo_service, &led_state_char);
+
+            // button char
+            simple_ble_add_characteristic(1, 1, 0, 0,
+                sizeof(btn_state), (uint8_t*)&btn_state, 
+                &demo_service, &btn_state_char);
+
+            // start advertising
+            simple_ble_adv_only_name();
 
             // initialize Kobuki
             kobukiInit();
@@ -117,8 +145,8 @@ reactor Board {
 
 main reactor {
     timer t(0, 10 msec);
-    board = new Board();
-    reaction(t) -> board.clck {=
+    robo = new Robot();
+    reaction(t) -> robo.clck {=
         SET(board.clck, 1);
     =}
 }

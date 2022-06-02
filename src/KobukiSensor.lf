@@ -89,6 +89,7 @@ reactor Robot {
         =}
     }
 
+    // polling
     reaction (clck) {=
         kobukiSensorPoll(&sensor_cache);
         // print results
