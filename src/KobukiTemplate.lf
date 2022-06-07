@@ -110,22 +110,12 @@ reactor Robot {
         // default behavior
         reaction(clck) {=
             display_write("OFF", DISPLAY_LINE_0);
-            kobukiDriveDirect(0, 0);
-        =}
-        // 
-        reaction(btn) -> DRIVE {=
-            SET_MODE(DRIVE);
         =}
     }
     mode DRIVE {
-        // mode actions
+        // default behavior
         reaction(clck) {=
             display_write("DRIVE", DISPLAY_LINE_0);
-            kobukiDriveDirect(60, 60);
-            // schedule mode actions
-        =}
-        reaction(btn) -> OFF {=
-            SET_MODE(OFF);
         =}
     }
   
