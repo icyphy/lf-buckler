@@ -1,0 +1,97 @@
+target C {
+    threading: false,
+    cmake: false, // FIXME: build option should disable this.
+    build: "../scripts/build_nrf_unix.sh",
+};
+
+preamble {=
+    #include "nrf_gpio.h"   // Defines nrf_gpio...
+    #include "nrf_drv_gpiote.h" // nrf_gpio interrupt driver
+    #include "nrf_log.h"
+    #include "nrf_log_ctrl.h"
+    #include "nrf_log_default_backends.h"
+    #include "app_error.h"
+
+    #define LED0 NRF_GPIO_PIN_MAP(0, 17)
+    #define LED1 NRF_GPIO_PIN_MAP(0, 18)
+    #define LED2 NRF_GPIO_PIN_MAP(0, 19)
+    #define LED3 NRF_GPIO_PIN_MAP(0, 20)
+
+    #define BTN1 NRF_GPIO_PIN_MAP(0, 13)
+    // nrf interrupt
+    nrf_int gpio_int = {GPIOTE_IRQn, 0, NULL};
+    void* p_btn_trigger;
+    void btn_pin_handle(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
+        INT_RAISED = -1; // TODO
+        lf_mutex_t* gpio_mutex = &gpio_int;
+        lf_mutex_lock(&gpio_int);
+        
+        // interrupt body
+        lf_schedule(p_btn_trigger, 0);
+        printf("DEBUG: interrupt\n");
+
+        lf_mutex_unlock(&gpio_int);
+    }
+=}
+
+/**
+ * Importable reactor that flashes a distinctive pattern.
+ * This can be usefully included in other programs to indicate liveness.
+ */
+reactor FlashingLEDs {
+    timer t1(0 sec, 1 sec);
+    timer t2(0 sec, 2 sec);
+    timer t3(0 sec, 3 sec);
+
+    physical action btn;
+
+    reaction(startup) -> btn {=
+        // btn handle
+        p_btn_trigger = btn;
+        // Configure LEDs by defining their GPIO pins as outputs.
+        // Initially, the LEDs will be on.
+        ret_code_t err_code;
+
+        err_code = NRF_LOG_INIT(NULL);
+        APP_ERROR_CHECK(err_code);
+        NRF_LOG_DEFAULT_BACKENDS_INIT();
+        printf("Log initialized!\n");
+
+        err_code = nrf_drv_gpiote_init();
+        APP_ERROR_CHECK(err_code);
+
+        nrf_gpio_cfg_output(LED0);
+        nrf_gpio_cfg_output(LED1);
+        nrf_gpio_cfg_output(LED2);
+
+        nrf_gpio_cfg_output(LED3);
+        nrf_gpio_pin_set(LED3);
+
+        nrf_drv_gpiote_in_config_t in_config = GPIOTE_CONFIG_IN_SENSE_HITOLO(true); // falling edge interrupt
+        in_config.pull = NRF_GPIO_PIN_PULLUP;
+        err_code = nrf_drv_gpiote_in_init(BTN1, &in_config, btn_pin_handle);
+        
+        // initialize gpio mutex
+        lf_mutex_t* gpio_mutex = &gpio_int;
+        lf_mutex_init(gpio_mutex);
+
+        APP_ERROR_CHECK(err_code);
+        nrf_drv_gpiote_in_event_enable(BTN1, true);
+    =}
+    reaction(t1) {=
+        nrf_gpio_pin_toggle(LED0);
+    =}
+    reaction(t2) {=
+        nrf_gpio_pin_toggle(LED1);
+    =}
+    reaction(t3) {=
+        nrf_gpio_pin_toggle(LED2);
+    =}
+    reaction(btn) {=
+        nrf_gpio_pin_toggle(LED3);
+    =}
+}
+
+main reactor {
+    a = new FlashingLEDs();
+}
