@@ -104,6 +104,9 @@ reactor Robot {
         if (abs(self->prev_angle - sensor_cache.angle) >= 8500){
             lf_schedule(turn_fin, 0);
         }
+        char buf[16];
+        snprintf(buf, 16, "%f", sensor_cache.angle);
+        display_write(buf, DISPLAY_LINE_1);
     =}
 
     mode OFF {

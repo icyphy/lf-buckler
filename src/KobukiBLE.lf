@@ -245,7 +245,7 @@ reactor Robot {
 }
 
 main reactor {
-    timer t(0, 10 msec);
+    timer t(1 sec, 10 msec);
     robo = new Robot();
     reaction(t) -> robo.clck {=
         SET(robo.clck, 1);
