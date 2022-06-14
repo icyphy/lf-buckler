@@ -124,7 +124,7 @@ main reactor {
     =}
     **/
     
-    timer t(0, 10 msec);
+    timer t(1 sec, 10 msec);
     board = new Board();
     reaction(t) -> board.clck {=
         SET(board.clck, 1);
