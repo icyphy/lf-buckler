@@ -188,6 +188,11 @@ int lf_mutex_init(lf_mutex_t* mutex) {
  *  set appropriately (see `man 2 clock_nanosleep`).
  */
 int lf_nanosleep(instant_t requested_time) {
+    instant_t target_time;
+    instant_t cur_time;
+    lf_clock_gettime(&target_time);
+    target_time += requested_time;
+
     // enable all interrupts
     nrf_int* head;
     head = int_list_head;
@@ -195,13 +200,15 @@ int lf_nanosleep(instant_t requested_time) {
         lf_mutex_unlock((lf_mutex_t*)head);
         head = head->next;
     }
+
     INT_RAISED = 0;
-    // calculate sleep time
-    instant_t requested_ms = requested_time / 1000000;
-    instant_t requested_us = (requested_time - 1000000*requested_ms)/1000;
-    // TODO: interruptable delay such that exits immediately
-    nrf_delay_ms((int) requested_ms);
-    nrf_delay_us((int) requested_us);
+    while(cur_time <= target_time) {
+        lf_clock_gettime(&cur_time);
+        if (INT_RAISED != 0) {
+            printf("DEBUG: INT RAISE \n");
+            break;
+        }
+    }
     // disable interrupts
     head = int_list_head;
     while (head != NULL) {
@@ -210,9 +217,5 @@ int lf_nanosleep(instant_t requested_time) {
     }
     // check if interrupted and return -1 on interrupt after wait
     // this will force the event queue to be checked again
-    if (INT_RAISED != 0) {
-        printf("DEBUG: INT RAISE \n");
-        return -1;
-    }
-    return 0;
+    return INT_RAISED;
 }
