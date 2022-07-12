@@ -1,0 +1,39 @@
+
+bug
+
+error_print_and_exit
+    -> deprecated
+replace with in main.c
+lf_print_error_and_exit
+
+how to auto copy headers in src
+create lf header system?
+
+loop timer (10msec)
+startup
+
+reaction based on loop timer
+does this -> interrupt the startup task
+    -> no atomic reactions
+
+only works with kobuki serial withiout missed header
+must place kobuki init with main loop
+    -> research why? help understand problem with simueltaneous logic
+        not timing? should be atomic
+            no asynchornous or this wouldnt work
+    must be about clock initializations
+        init the one timer messes with the serial timer?
+
+
+issues
+cant use schedule
+the issue with error_print_and_exit
+    deprecated functions
+    
+
+for some reason the make file is not using the schedule.c library
+look at make rules
+might have to do with internal lf make
+    ask marten or shoakai where to look
+        or find?
+

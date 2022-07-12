@@ -1,0 +1,161 @@
+target C {
+    threading: false,
+    cmake: false,
+    build: "../scripts/build_nrf_unix.sh"   
+};
+
+preamble {=
+    #include <math.h>
+    #include <stdbool.h>
+    #include <stdint.h>
+    #include <stdio.h>
+
+    #include "app_error.h"
+    #include "app_timer.h"
+    #include "nrf.h"
+    #include "nrf_delay.h"
+    #include "nrf_gpio.h"
+    #include "nrf_log.h"
+    #include "nrf_log_ctrl.h"
+    #include "nrf_log_default_backends.h"
+    #include "nrf_pwr_mgmt.h"
+    #include "nrf_drv_spi.h"
+
+    #include "buckler.h"
+    #include "display.h"
+    #include "kobukiActuator.h"
+    #include "kobukiSensorPoll.h"
+    #include "kobukiSensorTypes.h"
+    #include "kobukiUtilities.h"
+    #include "lsm9ds1.h"
+
+    KobukiSensors_t sensor_cache;
+    NRF_TWI_MNGR_DEF(twi_mngr_instance, 5, 0);
+    const nrf_drv_spi_t spi_instance = NRF_DRV_SPI_INSTANCE(1);
+=}
+
+reactor Robot {
+    input clck:int;
+
+    initial mode INIT {
+        reaction(startup) -> OFF {=
+            ret_code_t error_code = NRF_SUCCESS;
+
+            // initialize RTT library
+            error_code = NRF_LOG_INIT(NULL);
+            APP_ERROR_CHECK(error_code);
+            NRF_LOG_DEFAULT_BACKENDS_INIT();
+            printf("Log initialized!\n");
+
+            // initialize LEDs
+            nrf_gpio_pin_dir_set(23, NRF_GPIO_PIN_DIR_OUTPUT);
+            nrf_gpio_pin_dir_set(24, NRF_GPIO_PIN_DIR_OUTPUT);
+            nrf_gpio_pin_dir_set(25, NRF_GPIO_PIN_DIR_OUTPUT);
+
+            // initialize display
+            nrf_drv_spi_config_t spi_config = {
+            .sck_pin = BUCKLER_LCD_SCLK,
+            .mosi_pin = BUCKLER_LCD_MOSI,
+            .miso_pin = BUCKLER_LCD_MISO,
+            .ss_pin = BUCKLER_LCD_CS,
+            .irq_priority = NRFX_SPI_DEFAULT_CONFIG_IRQ_PRIORITY,
+            .orc = 0,
+            .frequency = NRF_DRV_SPI_FREQ_4M,
+            .mode = NRF_DRV_SPI_MODE_2,
+            .bit_order = NRF_DRV_SPI_BIT_ORDER_MSB_FIRST
+            };
+            error_code = nrf_drv_spi_init(&spi_instance, &spi_config, NULL, NULL);
+            APP_ERROR_CHECK(error_code);
+            display_init(&spi_instance);
+            display_write("Hello, Human!", DISPLAY_LINE_0);
+            printf("Display initialized!\n");
+
+            // initialize i2c master (two wire interface)
+            nrf_drv_twi_config_t i2c_config = NRF_DRV_TWI_DEFAULT_CONFIG;
+            i2c_config.scl = BUCKLER_SENSORS_SCL;
+            i2c_config.sda = BUCKLER_SENSORS_SDA;
+            i2c_config.frequency = NRF_TWIM_FREQ_100K;
+            error_code = nrf_twi_mngr_init(&twi_mngr_instance, &i2c_config);
+            APP_ERROR_CHECK(error_code);
+            lsm9ds1_init(&twi_mngr_instance);
+            printf("IMU initialized!\n");
+
+            // initialize Kobuki
+            kobukiInit();
+            printf("Kobuki initialized!\n");
+            if (error_code == NRF_SUCCESS) {
+                SET_MODE(OFF);                
+            }
+        =}
+    }
+
+    // polling
+    reaction (clck) {=
+        kobukiSensorPoll(&sensor_cache);
+        // print results
+        printf("\n");
+        printf("### Kobuki Sensor Values ###\n");
+        printf("Wheel drop left:\t%d\n", sensor_cache.bumps_wheelDrops.wheeldropLeft);
+        printf("Wheel drop right:\t%d\n", sensor_cache.bumps_wheelDrops.wheeldropRight);
+        printf("\n");
+        printf("Bump left:\t%d\n", sensor_cache.bumps_wheelDrops.bumpLeft);
+        printf("Bump center:\t%d\n", sensor_cache.bumps_wheelDrops.bumpCenter);
+        printf("Bump right:\t%d\n", sensor_cache.bumps_wheelDrops.bumpRight);
+        printf("\n");
+        printf("Cliff left:\t%d\n", sensor_cache.cliffLeft);
+        printf("Cliff center:\t%d\n", sensor_cache.cliffCenter);
+        printf("Cliff right:\t%d\n", sensor_cache.cliffRight);
+        printf("\n");
+        printf("Button 0:\t%d\n", sensor_cache.buttons.B0);
+        printf("Button 1:\t%d\n", sensor_cache.buttons.B1);
+        printf("Button 2:\t%d\n", sensor_cache.buttons.B2);
+        printf("\n");
+        printf("Encoder left:\t%d\n", sensor_cache.leftWheelEncoder);
+        printf("Encoder right\t%d\n", sensor_cache.rightWheelEncoder);
+        printf("\n");
+        printf("Current left:\t%d\n", sensor_cache.leftWheelCurrent);
+        printf("Current right\t%d\n", sensor_cache.rightWheelCurrent);
+        printf("\n");
+        printf("PWM left:\t%d\n", sensor_cache.leftWheelPWM);
+        printf("PWM right\t%d\n", sensor_cache.rightWheelPWM);
+        printf("\n");
+        printf("Over current left:\t%d\n", sensor_cache.leftWheelOverCurrent);
+        printf("Over current right\t%d\n", sensor_cache.rightWheelOverCurrent);
+        printf("\n");
+        printf("Battery voltage:\t%d\n", sensor_cache.batteryVoltage);
+        printf("Charging state:\t%d\n", sensor_cache.chargingState);
+        printf("\n");
+        printf("Angle:\t%d\n", sensor_cache.angle);
+        printf("Rate:\t%d\n", sensor_cache.angleRate);
+
+    =}
+    
+    mode OFF {
+        reaction(clck) -> DRIVE {=
+            if (is_button_pressed(&sensor_cache)) {
+                SET_MODE(DRIVE);
+            } else {
+                display_write("OFF", DISPLAY_LINE_0);
+                kobukiDriveDirect(0, 0);
+            }
+        =}
+    }
+    mode DRIVE {
+        reaction(clck) -> OFF {=
+            if (is_button_pressed(&sensor_cache)) {
+                SET_MODE(OFF);
+            } else {
+                display_write("DRIVE", DISPLAY_LINE_0);
+                kobukiDriveDirect(60, 60);
+            }
+        =}
+    }
+}
+
+main reactor {
+    timer t(1 sec, 500 msec);
+    robot = new Robot();
+    reaction(t) -> robot.clck {=
+        SET(robot.clck, 1);
+    =}
+}

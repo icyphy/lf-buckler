@@ -1,0 +1,108 @@
+target C {
+    threading: false,
+    cmake: false
+}
+
+preamble {=
+    #include <math.h>
+    #include <stdio.h>
+    #include "kobukiSensorTypes.h"
+    #include "display.h"
+
+    float measure_distance(uint16_t current_encoder, uint16_t previous_encoder) {
+        const float CONVERSION = 0.00065;
+        float result = 0.0;
+        if (current_encoder >= previous_encoder) {
+            result = (float)current_encoder - (float)previous_encoder;
+        } else {
+            result = (float)current_encoder + (0xFFFF - (float)previous_encoder);
+        }
+        return result = result * CONVERSION;
+    }
+    KobukiSensors_t sensors = {0};
+
+=}
+
+// all robot state and analysis should occur here
+reactor Sensor {
+    // TODO: pure in and out type
+    input clck:int;
+    input reset:int;
+
+    logical action poll;
+    
+    output btn:int;
+    output dist:float;
+
+    state start_encoder:uint16_t(0);
+    
+    // poll here; unpack sensors
+    reaction(clck) -> poll {=
+        float temp;
+        printf("Sensors Poll\n");
+        kobukiSensorPoll(&sensors);
+        lf_schedule(poll, MSEC(1));
+    =}
+    // 
+    reaction(poll) -> btn {=
+        if (is_button_pressed(&(sensors))) {
+            SET(btn, 1);
+        }
+    =}
+    reaction(poll) -> dist {=
+        temp = measure_distance(sensors.leftWheelEncoder, self->start_encoder);
+        SET(dist, temp);
+        // display distance state
+        char buf[16];
+        snprintf(buf, 16, "%f", distance->value);
+        display_write(buf, DISPLAY_LINE_1);
+    =}
+    reaction(reset) {=
+        self->start_encoder = self->prev_encoder;
+    =}
+}
+
+reactor States {
+    input clck:int;
+    input btn:int;
+    input dist:float;
+    output reset:int;
+
+    // MODES
+    initial mode OFF {
+        // default behavior
+        reaction(clck) {=
+            display_write("OFF", DISPLAY_LINE_0);
+            kobukiDriveDirect(0, 0);
+        =}
+        // 
+        reaction(btn) -> DRIVE {=
+            SET_MODE(DRIVE);
+        =}
+    }
+    mode DRIVE {
+        reaction(clck) {=
+            display_write("DRIVE", DISPLAY_LINE_0);
+            kobukiDriveDirect(60, 60);
+        =}
+        reaction(btn) -> OFF {=
+            SET_MODE(OFF);
+        =}
+    }
+
+    
+}
+
+reactor Controller {
+    input clck:int;
+
+    r_sensor = new Sensor();
+    r_states = new States();
+
+    clck -> r_sensor.clck;
+    clck -> r_states.clck;
+    
+    r_sensor.btn -> r_states.btn;
+    r_sensor.dist -> r_states.dist;
+    r_states.reset -> r_sensor.reset;
+}

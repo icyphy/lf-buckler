@@ -2,6 +2,35 @@
 
 This repo provides resources for using Lingua Franca to program an nRF52x Thread/BLE embedded board from Nordic Semiconductor with a Berkeley Buckler daughter card.
 
+## VM Setup Instructions
+This set of instructions will guide a user on how to setup the EECS149 Lab VM to be able to use Lingua Franca. The installation requires sudo permissions on the vm.
+
+### Java Installation
+Java 17 or above is required for Lingua Franca code generation. We will use the following.
+
+```
+sudo apt update && sudo apt upgrade -y
+sudo apt-get install openjdk-17-jre
+sudo apt-get install openjdk-17-jdk
+```
+
+### Lingua Franca Compiler
+Get the latest lingua franca compiler and add it to PATH. Replace with latest verision. Do this in your home directory. [LFC Releases](https://github.com/lf-lang/lingua-franca/releases).
+```
+wget <lfc_link>
+tar xvf lfc_<version>.tar.gz
+./lfc_<version>/bin/lfc --version
+```
+Add the compiler to path. There are many ways to do this. The instructions below use .bashrc.
+```
+vim ~/.bashrc
+```
+Add the following to the botton of the file. The run the source command to load into current shell instance.
+```
+export PATH="$HOME/lfc_0.2.0/bin/lfc:$PATH"
+source ~/.bashrc
+```
+
 ## Clone this Repository
 
 ```
@@ -11,7 +40,7 @@ git submodule update --init --recursive
 
 ## Install Cross-Compilation and Loading Tools
 
-In order to get code compiling and loading over JTAG, you'll need at least two tools.
+In order to get code compiling and loading over JTAG, you'll need at least two tools. Not required if using Lab VM.
 
 * [JLinkExe](https://www.segger.com/downloads/jlink). You want to the "J-Link Software and Documentation Pack". There are various packages available depending on operating system.
 
@@ -34,7 +63,7 @@ cd src
 lfc BucklerLED.lf 
 ```
 
-You should see something like this:
+You should see something like this. Code will be auto flashed onto device if connected.
 
 ```
 Generating code for: file:/Users/eal/git/lf-buckler/src/BucklerLED.lf
