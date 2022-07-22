@@ -44,6 +44,12 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 /**
+ * Keep track of interrupts being raised.
+ * Allow sleep to exit with nonzero return on interrupt.
+ */
+uint8_t INT_RAISED;
+
+/**
  * Offset to _LF_CLOCK that would convert it
  * to epoch time.
  * For CLOCK_REALTIME, this offset is always zero.
