@@ -1,3 +1,7 @@
+/**
+ * Toggle LEDs on the Buckler daughter board periodically.
+ * @author Abhi Gundrala
+ */
 target C {
     threading: false,
     cmake: false, // FIXME: build option should disable this.
@@ -10,7 +14,8 @@ preamble {=
 =}
 
 /**
- * Importable reactor that flashes a distinctive pattern.
+ * Importable reactor that flashes a distinctive pattern
+ * on the LEDs on the Buckler daughter card.
  * This can be usefully included in other programs to indicate liveness.
  */
 reactor FlashingLEDs {
