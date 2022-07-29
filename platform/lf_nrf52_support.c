@@ -24,28 +24,30 @@ STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ***************/
 
-/** Linux API support for the C target of Lingua Franca.
- *  
+/** NRF52 support for the C target of Lingua Franca.
+ *  Interrupt only support, does not implement multi-threading
+ *  or realtime clock support.
+ *
  *  @author{Soroush Bateni <soroush@utdallas.edu>}
+ *  @author{Abhi Gundrala <gundralaa@berkeley.edu>}
  */
 
-#include "lf_nRF52832_support.h"
+#include "lf_nrf52_support.h"
 #include "../platform.h"
 
 #include "nrf_delay.h"
 #include "nrf.h"
-#include "nrf_mtx.h"
+#include "nrf_drv_timer.h"
+#include "app_error.h"
 
 #ifdef NUMBER_OF_WORKERS
-#if __STDC_VERSION__ < 201112L || defined (__STDC_NO_THREADS__) // (Not C++11 or later) or no threads support
-
-
-
-#else
-#include "lf_C11_threads_support.c"
-#endif
 #endif
 
+/**
+ * Keep track of interrupts being raised.
+ * Allow sleep to exit with nonzero return on interrupt.
+ */
+uint8_t INT_RAISED;
 
 /**
  * Offset to _LF_CLOCK that would convert it
@@ -55,6 +57,12 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * clocks at the start of the execution.
  */
 interval_t _lf_epoch_offset = 0LL;
+
+// Interrupt list pointers
+nrf_int* int_list_head = NULL;
+nrf_int* int_list_cur = NULL;
+
+
 
 /**
  * Convert a _lf_time_spec_t ('tp') to an instant_t representation in
@@ -91,15 +99,17 @@ void calculate_epoch_offset() {
  * Initialize the LF clock.
  */
 void lf_initialize_clock() {
-    // Initialize TIMER4 as a free running timer
+    // Initialize TIMER3 as a free running timer
     // 1) Set to be a 32 bit timer
     // 2) Set to count at 1MHz
     // 3) Clear the timer
     // 4) Start the timer
-    NRF_TIMER4->BITMODE = 3;
-    NRF_TIMER4->PRESCALER = 4;
-    NRF_TIMER4->TASKS_CLEAR = 1;
-    NRF_TIMER4->TASKS_START = 1;
+    
+    NRF_TIMER3->BITMODE = 3;
+    NRF_TIMER3->PRESCALER = 4;
+    NRF_TIMER3->TASKS_CLEAR = 1;
+    NRF_TIMER3->TASKS_START = 1;
+    
 }
 
 /**
@@ -116,16 +126,63 @@ int lf_clock_gettime(instant_t* t) {
         // errno = EFAULT; //TODO: why does this not work with new build process?
         return -1;
     }
-
-    NRF_TIMER4->TASKS_CAPTURE[1] = 1;
-    instant_t tp_in_us = (instant_t)(NRF_TIMER4->CC[1]);
-
+    
+    NRF_TIMER3->TASKS_CAPTURE[1] = 1;
+    instant_t tp_in_us = (instant_t)(NRF_TIMER3->CC[1]);
     *t = tp_in_us * 1000 + _lf_epoch_offset;
     return 0;
 }
 
+/**
+ * Lock a mutex.
+ * Disable a specific interrupt number on NVIC.
+ * 
+ * @return 0 on success, platform-specific error number otherwise.
+ */
+int lf_mutex_lock(lf_mutex_t* mutex) {
+    if (mutex == NULL) {
+        return -1;
+    }
+    NVIC_DisableIRQ(mutex->int_num);
+    return 0;
+}
 
+/** 
+ * Unlock a mutex.
+ * Enable a specific interrupt number on NVIC.
+ * 
+ * @return 0 on success, platform-specific error number otherwise.
+ */
+int lf_mutex_unlock(lf_mutex_t* mutex) {
+    if (mutex == NULL) {
+        return -1;
+    }
+    NVIC_EnableIRQ(mutex->int_num);
+    return 0;
+}
 
+/**
+ * Initialize a mutex.
+ * Set priority of interrupt number and enable.
+ * 
+ * @return 0 on success, platform-specific error number otherwise.
+ */
+int lf_mutex_init(lf_mutex_t* mutex) {
+    if (mutex == NULL) {
+        return -1;
+    }
+    NVIC_SetPriority(mutex->int_num, mutex->priority);
+    lf_mutex_lock(mutex);
+    // add to interrupt to global int list
+    nrf_int* cpy_int = (nrf_int*) malloc(sizeof(nrf_int));
+    memcpy(cpy_int, (nrf_int*)mutex, sizeof(nrf_int));
+    int_list_cur->next = cpy_int;
+    int_list_cur = cpy_int;
+    if (int_list_head == NULL) {
+        int_list_head = int_list_cur;
+    }
+    return 0;
+}
 
 /**
  * Pause execution for a number of nanoseconds.
@@ -137,9 +194,34 @@ int lf_clock_gettime(instant_t* t) {
  *  set appropriately (see `man 2 clock_nanosleep`).
  */
 int lf_nanosleep(instant_t requested_time) {
-    instant_t requested_ms = requested_time / 1000000;
-    instant_t requested_us = (requested_time - 1000000*requested_ms)/1000;
-    nrf_delay_ms((int) requested_ms);
-    nrf_delay_us((int) requested_us);
-    return 0;
+    instant_t target_time;
+    instant_t cur_time;
+    lf_clock_gettime(&target_time);
+    target_time += requested_time;
+
+    // enable all interrupts
+    nrf_int* head;
+    head = int_list_head;
+    while (head != NULL) {
+        lf_mutex_unlock((lf_mutex_t*)head);
+        head = head->next;
+    }
+
+    INT_RAISED = 0;
+    while(cur_time <= target_time) {
+        lf_clock_gettime(&cur_time);
+        if (INT_RAISED != 0) {
+            printf("DEBUG: INT RAISE \n");
+            break;
+        }
+    }
+    // disable interrupts
+    head = int_list_head;
+    while (head != NULL) {
+        lf_mutex_lock((lf_mutex_t*)head);
+        head = head->next;
+    }
+    // check if interrupted and return -1 on interrupt after wait
+    // this will force the event queue to be checked again
+    return INT_RAISED;
 }

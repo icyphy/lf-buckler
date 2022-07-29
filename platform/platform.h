@@ -1,4 +1,4 @@
-/* Variant of the API support for the C target for nRF52x + Buckler. */
+/* Platform API support for the C target of Lingua Franca. */
 
 /*************
 Copyright (c) 2021, The University of California at Berkeley.
@@ -28,22 +28,16 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * Platform API support for the C target of Lingua Franca.
  * This file is a variant for the C target for nRF52x + Buckler,
  * based on the generic platform.h in LF.
+ *
+ * @author{Abhi Gundrala <gundrala@berkeley.edu>}
  */
 
 #ifndef PLATFORM_H
 #define PLATFORM_H
 
-
-// nRF52832
-#include "platform/lf_nRF52832_support.h"
-
-#ifdef NUMBER_OF_WORKERS
-#define LF_TIMEOUT _LF_TIMEOUT
+#include "platform/lf_nrf52_support.h"
 
 typedef _lf_mutex_t lf_mutex_t;          // Type to hold handle to a mutex
-typedef _lf_cond_t lf_cond_t;            // Type to hold handle to a condition variable
-typedef _lf_thread_t lf_thread_t;        // Type to hold handle to a thread
-#endif
 
 /**
  * Time instant. Both physical and logical times are represented
@@ -62,6 +56,11 @@ typedef _interval_t interval_t;
 typedef _microstep_t microstep_t;
 
 #ifdef NUMBER_OF_WORKERS
+
+/**
+ * @brief Get the number of cores on the host machine.
+ */
+extern int lf_available_cores();
 
 /**
  * Create a new thread, starting with execution of lf_thread
@@ -142,12 +141,59 @@ extern int lf_cond_wait(lf_cond_t* cond, lf_mutex_t* mutex);
  */
 extern int lf_cond_timedwait(lf_cond_t* cond, lf_mutex_t* mutex, instant_t absolute_time_ns);
 
+/*
+ * Atomically increment the variable that ptr points to by the given value, and return the original value of the variable.
+ * @param ptr A pointer to a variable. The value of this variable will be replaced with the result of the operation.
+ * @param value The value to be added to the variable pointed to by the ptr parameter.
+ * @return The original value of the variable that ptr points to (i.e., from before the application of this operation).
+ */
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
+// Assume that an integer is 32 bits.
+#define lf_atomic_fetch_add(ptr, value) InterlockedExchangeAdd(ptr, value)
+#elif defined(__GNUC__) || defined(__clang__)
+#define lf_atomic_fetch_add(ptr, value) __sync_fetch_and_add(ptr, value)
+#else
+#error "Compiler not supported"
+#endif
+
+/*
+ * Atomically increment the variable that ptr points to by the given value, and return the new value of the variable.
+ * @param ptr A pointer to a variable. The value of this variable will be replaced with the result of the operation.
+ * @param value The value to be added to the variable pointed to by the ptr parameter.
+ * @return The new value of the variable that ptr points to (i.e., from before the application of this operation).
+ */
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
+// Assume that an integer is 32 bits.
+#define lf_atomic_add_fetch(ptr, value) InterlockedAdd(ptr, value)
+#elif defined(__GNUC__) || defined(__clang__)
+#define lf_atomic_add_fetch(ptr, value) __sync_add_and_fetch(ptr, value)
+#else
+#error "Compiler not supported"
+#endif
+
+/*
+ * Atomically compare the variable that ptr points to against oldval. If the
+ * current value is oldval, then write newval into *ptr.
+ * @param ptr A pointer to a variable.
+ * @param oldval The value to compare against.
+ * @param newval The value to assign to *ptr if comparison is successful.
+ * @return The true if comparison was successful. False otherwise.
+ */
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
+// Assume that an integer is 32 bits.
+#define lf_bool_compare_and_swap(ptr, oldval, newval) (InterlockedCompareExchange(ptr, newval, oldval) == oldval)
+#elif defined(__GNUC__) || defined(__clang__)
+#define lf_bool_compare_and_swap(ptr, oldval, newval) __sync_bool_compare_and_swap(ptr, oldval, newval)
+#else
+#error "Compiler not supported"
+#endif
+
 #endif
 
 /**
  * Initialize the LF clock. Must be called before using other clock-related APIs.
  */
-extern void lf_initialize_clock();
+extern void lf_initialize_clock(void);
 
 /**
  * Fetch the value of an internal (and platform-specific) physical clock and 
@@ -166,5 +212,17 @@ extern int lf_clock_gettime(instant_t* t);
  * @return 0 for success, or -1 for failure.
  */
 extern int lf_nanosleep(instant_t requested_time);
+
+
+/**
+ * Macros for marking function as deprecated
+ */
+#ifdef __GNUC__
+#define DEPRECATED(X) X __attribute__((deprecated))
+#elif defined(_MSC_VER)
+#define DEPRECATED(X) __declspec(deprecated) X
+#else
+#define DEPRECATED(X) X
+#endif
 
 #endif // PLATFORM_H

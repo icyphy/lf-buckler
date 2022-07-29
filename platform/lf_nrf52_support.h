@@ -24,39 +24,55 @@ STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ***************/
 
-/** nRF52832 API support for the C target of Lingua Franca.
+/** nrf52 API support for the C target of Lingua Franca.
  *  
  *  @author{Soroush Bateni <soroush@utdallas.edu>}
+ *  @author{Abhi Gundrala <gundralaa@berkeley.edu>}
  */
 
-#ifndef LF_nRF52832_SUPPORT_H
-#define LF_nRF52832_SUPPORT_H
-
-#ifdef NUMBER_OF_WORKERS
-    #include "lf_POSIX_threads_support.h"
-#endif
+#ifndef LF_NRF52_SUPPORT_H
+#define LF_NRF52_SUPPORT_H
 
 #include <stdint.h> // For fixed-width integral types
 #include <time.h>   // For CLOCK_MONOTONIC
 #include <stdbool.h>
 
 
-#include "nrf_mtx.h"
-
-
 #ifdef NUMBER_OF_WORKERS
-#if __STDC_VERSION__ < 201112L || defined (__STDC_NO_THREADS__) // (Not C++11 or later) or no threads support
-
 
 // typedef nrf_mtx_t _lf_mutex_t;
 // typedef CONDITION_VARIABLE _lf_cond_t;
 // typedef HANDLE _lf_thread_t;
 
-#else
-#include "lf_C11_threads_support.h"
-#endif
 #endif
 
+/**
+ * For the nrf52, each mutex will control an interrupt.
+ *
+ * The mutex holds the interrupt number.
+ * For example, a mutex might be defined for the GPIOTE peripheral interrupt number
+ * 
+ * When initialized, the interrupt is inserted into a global linked list
+ * for disabling and enabling all interrupts during sleep functions.
+ * - All interrupts are disabled by default after initialization
+ * - Priority levels are restricted between (0-7)
+ * 
+ */
+
+typedef struct nrf_int {
+    uint8_t int_num;
+    uint8_t priority;
+    struct nrf_int* next;
+} nrf_int;
+
+typedef nrf_int _lf_mutex_t;
+
+// TODO: find a better way to implement this
+/**
+ * Keep track of interrupts being raised.
+ * Allow sleep to exit with nonzero return on interrupt.
+ */
+extern uint8_t INT_RAISED;
 
 /**
  * Time instant. Both physical and logical times are represented
