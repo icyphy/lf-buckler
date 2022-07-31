@@ -32,6 +32,9 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *  @author{Abhi Gundrala <gundralaa@berkeley.edu>}
  */
 
+#include <stdlib.h> // Defines malloc.
+#include <string.h> // Defines memcpy.
+
 #include "lf_nrf52_support.h"
 #include "../platform.h"
 
@@ -113,9 +116,21 @@ void lf_initialize_clock() {
 }
 
 /**
+ * To handle overflow of a 32-bit timer with microsecond resolution,
+ * record the previous query to the timer here.
+ */
+uint32_t _lf_previous_timer_time = 0u;
+
+/**
  * Fetch the value of _LF_CLOCK (see lf_linux_support.h) and store it in tp. The
- * timestamp value in 't' will always be epoch time, which is the number of
- * nanoseconds since January 1st, 1970.
+ * timestamp value in 't' will will be the number of nanoseconds since the board was reset.
+ * The timers on the board have only 32 bits and their resolution is in microseconds, so
+ * the time returned will always be an even number of microseconds. Moreover, after about 71
+ * minutes of operation, the timer overflows. To correct for this, this function assumes that
+ * if the time returned by the timer is less than what it returned on the previous call, then
+ * a single overflow has occurred. The function therefore adds about 71 minutes to the time
+ * returned.  This will work correctly as long as this function is called at intervals that
+ * do not exceed 71 minutes. 
  *
  * @return 0 for success, or -1 for failure. In case of failure, errno will be
  *  set appropriately (see `man 2 clock_gettime`).
@@ -128,8 +143,16 @@ int lf_clock_gettime(instant_t* t) {
     }
     
     NRF_TIMER3->TASKS_CAPTURE[1] = 1;
-    instant_t tp_in_us = (instant_t)(NRF_TIMER3->CC[1]);
-    *t = tp_in_us * 1000 + _lf_epoch_offset;
+
+    // Handle possible overflow.
+    uint32_t current_timer_time = NRF_TIMER3->CC[1];
+    if (current_timer_time < _lf_previous_timer_time) {
+        // Overflow has occurred. Use _lf_epoch_offset to correct.
+        _lf_epoch_offset += (1LL << 32) * 1000;
+    }
+
+    *t = ((instant_t)current_timer_time) * 1000 + _lf_epoch_offset;
+    _lf_previous_timer_time = current_timer_time;
     return 0;
 }
 
