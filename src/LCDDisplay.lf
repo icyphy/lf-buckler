@@ -1,9 +1,5 @@
 /**
- * Display a message on the LCD display.
- * This program provides a reusable Display reactor that
- * displays a string on the LCD display of the Buckler board.
- * The main program counts off seconds and imports the FlashingLED
- * reactor to flash the LEDs.
+ * Display a count of seconds on the LCD display of the Buckler board.
  * @author Edward A. Lee
  */
 target C {
@@ -13,71 +9,7 @@ target C {
 
 // To generate a distinctive LED flashing pattern when operating.
 import FlashingLEDs from "BucklerLED.lf";
-
-preamble {=
-    #include "app_error.h"
-    #include "nrf.h"
-    #include "nrf_serial.h"
-    #include "nrfx_gpiote.h"
-    #include "nrf_drv_spi.h"
-    
-    #include "buckler.h"
-    #include "display.h"
-          
-    // Width of the display in characters.
-    #define BUCKLER_DISPLAY_WIDTH 16
-    
-    // The SPI instance has to be global for the display to work across functions.
-    nrf_drv_spi_t spi_instance = NRF_DRV_SPI_INSTANCE(1);
-
-    // Buffer to use to write messages to the display.
-    char buckler_message[2][BUCKLER_DISPLAY_WIDTH + 1];
-    
-    // Flag indicating that SPI has been initialized.
-    // This is needed so that there can be multiple instances of this reactor.
-    bool buckler_spi_initialized = false;
-=}
-
-/**
- * Display a message on row 0 or 1 of the Buckler LCD display.
- */
-reactor Display(row:int(0)) {
-    input message:string;
-    reaction(startup) {=
-        ret_code_t error_code = NRF_SUCCESS;
-
-        if (!buckler_spi_initialized) {
-            buckler_spi_initialized = true;
-            // initialize spi master
-            nrf_drv_spi_config_t spi_config = {
-                .sck_pin = BUCKLER_LCD_SCLK,
-                .mosi_pin = BUCKLER_LCD_MOSI,
-                .miso_pin = BUCKLER_LCD_MISO,
-                .ss_pin = BUCKLER_LCD_CS,
-                .irq_priority = NRFX_SPI_DEFAULT_CONFIG_IRQ_PRIORITY,
-                .orc = 0,
-                .frequency = NRF_DRV_SPI_FREQ_4M,
-                .mode = NRF_DRV_SPI_MODE_2,
-                .bit_order = NRF_DRV_SPI_BIT_ORDER_MSB_FIRST
-            };
-            error_code = nrf_drv_spi_init(&spi_instance, &spi_config, NULL, NULL);
-            APP_ERROR_CHECK(error_code);
-        
-            // initialize display driver
-            error_code = display_init(&spi_instance);
-            APP_ERROR_CHECK(error_code);
-            
-            error_code = display_write("Initialized", 0);
-            APP_ERROR_CHECK(error_code);
-        }
-    =}
-    reaction(message) {=
-        // Copy the message to the global buffer, truncating it at the display width.
-        snprintf(buckler_message[self->row], BUCKLER_DISPLAY_WIDTH + 1, "%s", message->value);
-        ret_code_t error_code = display_write(buckler_message[self->row], self->row);
-        APP_ERROR_CHECK(error_code);
-    =}
-}
+import Display from "lib/Display.lf";
 
 main reactor {
     d0 = new Display(row = 0);
