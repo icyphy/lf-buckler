@@ -4,7 +4,6 @@
  */
 target C {
     threading: false,
-    cmake: false, // FIXME: build option should disable this.
     build: "../scripts/build_nrf_unix.sh",
 };
 
