@@ -1,10 +1,13 @@
 /**
  * Display a message on the LCD display.
+ * This program provides a reusable Display reactor that
+ * displays a string on the LCD display of the Buckler board.
+ * The main program counts off seconds and imports the FlashingLED
+ * reactor to flash the LEDs.
  * @author Edward A. Lee
  */
 target C {
     threading: false,
-    cmake: false, // FIXME: build option should disable this.
     build: "../scripts/build_nrf_unix.sh Display.lf",
 };
 
