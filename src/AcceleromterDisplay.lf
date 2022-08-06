@@ -1,5 +1,6 @@
 /**
- * Display a count of seconds on the LCD display of the Buckler board.
+ * Display three dimensions of accelerometer measurements
+ * plus time, for a total of four dimensions.
  * @author Edward A. Lee
  */
 target C {
