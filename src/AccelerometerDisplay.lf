@@ -8,7 +8,6 @@ target C {
     build: "../scripts/build_nrf_unix.sh Display.lf",
 };
 
-// To generate a distinctive LED flashing pattern when operating.
 import Accelerometer from "lib/Accelerometer.lf";
 import Display from "lib/Display.lf";
 
@@ -21,7 +20,7 @@ main reactor {
     dx = new Display(row = 0);
     dy = new Display(row = 1);
     
-    timer t(0, 100 msec);
+    timer t(0, 250 msec);
     
     state count:int(0);
         
@@ -35,7 +34,7 @@ main reactor {
     =}
     reaction(a.y) -> dy.message {=
         static char y[BUCKLER_DISPLAY_WIDTH + 1];
-        snprintf(y, BUCKLER_DISPLAY_WIDTH + 1, "y:%d t:%d", a.y->value, (self->count++)/10);
+        snprintf(y, BUCKLER_DISPLAY_WIDTH + 1, "y:%d t:%d", a.y->value, (self->count++)/4);
         lf_set(dy.message, y);
     =}
 }

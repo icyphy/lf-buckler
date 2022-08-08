@@ -37,6 +37,7 @@ main reactor {
         }
     =}
     reaction(t) {=
+        printf("Toggle LED %d\n", self->count);
         nrf_gpio_pin_toggle(LEDS[self->count++]);
         if (self->count >= 3) self->count = 0; 
     =}
