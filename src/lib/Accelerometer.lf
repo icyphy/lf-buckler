@@ -82,9 +82,11 @@ reactor Accelerometer(row:int(0)) {
         APP_ERROR_CHECK(error_code);
     =}
     reaction(trigger) -> x, y, z {=
-        // sample analog inputs
-        lf_set(x, sample_value(X_CHANNEL));
-        lf_set(y, sample_value(Y_CHANNEL));
-        lf_set(z, sample_value(Z_CHANNEL));
+        if (trigger->value) {
+            // sample analog inputs
+            lf_set(x, sample_value(X_CHANNEL));
+            lf_set(y, sample_value(Y_CHANNEL));
+            lf_set(z, sample_value(Z_CHANNEL));
+        }
     =}
 }
