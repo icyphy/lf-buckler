@@ -38,7 +38,6 @@ main reactor {
     =}
     reaction(t) {=
         nrf_gpio_pin_toggle(LEDS[self->count++]);
-        foo;
         if (self->count >= 3) self->count = 0; 
     =}
 }
