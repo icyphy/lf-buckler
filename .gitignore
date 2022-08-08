@@ -54,3 +54,10 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Mac specific
+.DS_Store
+
+# VS Code
+.vscode
+
