@@ -1,6 +1,10 @@
 /**
- * Sequence through the LEDs on the Buckler daughter board periodically.
- * Fashioned after `buckler/software/apps/blink`.
+ * Template for interrupt problems in chapter 5 of the lab manual.
+ * Fashioned after `buckler/software/apps/interrupts`.
+ * Note that the way this set of problems have been designed requires
+ * a customized build script and many customized infrastructure files,
+ * unfortunately.
+ * 
  * @author Edward A. Lee
  */
 target C {
