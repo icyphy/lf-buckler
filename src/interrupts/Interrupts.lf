@@ -24,7 +24,7 @@ preamble {=
     
     void GPIOTE_IRQHandler(void) {
         NRF_GPIOTE->EVENTS_IN[0] = 0;
-        // Your code goes here.
+        // Your code to respond to interrupts goes here.
     }
 =}
 
@@ -32,12 +32,7 @@ main reactor {
     timer t(0, 1 sec);
     state count:int(0);
     reaction(startup) {=
-        //(1) | (28 << 8) | (2<< 16)
-        NRF_GPIOTE->CONFIG[0] = 0x00021C01;//AA:01, BBBBB:11100, CC:10
-        NRF_GPIOTE->INTENSET=0x01;//A:1
-
-        NVIC_EnableIRQ(GPIOTE_IRQn);
-        NVIC_SetPriority(GPIOTE_IRQn, 0);
+        // Your code to initialize interrupts goes here.
     =}
     reaction(t) {=
         printf("Looping\n");
