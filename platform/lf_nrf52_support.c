@@ -39,9 +39,13 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nrf.h"
 #include "nrf_drv_timer.h"
 #include "app_error.h"
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef NUMBER_OF_WORKERS
 #endif
+
+uint8_t INT_RAISED = 0;
 
 /**
  * Offset to _LF_CLOCK that would convert it

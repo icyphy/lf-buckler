@@ -72,7 +72,7 @@ typedef nrf_int _lf_mutex_t;
  * Keeps track of interrupts being raised
  * Allows sleep to exit with nonzero return on interrupt
  */
-uint8_t INT_RAISED;
+extern uint8_t INT_RAISED;
 
 /**
  * Time instant. Both physical and logical times are represented
