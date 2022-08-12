@@ -1,0 +1,24 @@
+/**
+ * Print a counting sequence via RTT.
+ * Fashioned after `buckler/software/apps/printf`.
+ * @author Edward A. Lee
+ */
+target C {
+    threading: false,
+    build: "../scripts/build_nrf_unix.sh",
+};
+
+preamble {=
+    #include "app_error.h"
+    #include "nrf_log_ctrl.h"
+    #include "nrf_log_default_backends.h"
+=}
+
+main reactor {
+    timer t(0, 1 sec);
+    state count:uint32_t(0);
+    reaction(t) {=
+        printf("Iteration: %lu\n", self->count);
+        self->count++;
+    =}
+}

@@ -1,69 +1,28 @@
-# Lingua Franca, nRF, and Buckler
+# Lingua Franca, nRF52, and Buckler
 
-This repo provides resources for using Lingua Franca to program an nRF52x Thread/BLE embedded board from Nordic Semiconductor with a Berkeley Buckler daughter card.
+This repo provides resources for using Lingua Franca to program an nRF52x Thread/BLE embedded board from Nordic Semiconductor with and without a Berkeley Buckler daughter card. The first part of this README assumes you have already set up your machine and have connected the board to a USB port.  The second part explains how to do the setup.  The code has been tested on macOS and Ubuntu, with a pre-configured Ubuntu virtual machine available at **FIXME**.
 
-## VM Setup Instructions
-This set of instructions will guide a user on how to setup the EECS149 Lab VM to be able to use Lingua Franca. The installation requires sudo permissions on the vm.
+# Using Lingua Franca with the nRF52+Buckler
 
-### Java Installation
-Java 17 or above is required for Lingua Franca code generation. We will use the following.
+This section assumes you are either using a preconfigured virtual machine or have followed the set up instructions below.
 
+## Compile a Lingua Franca File
+
+Plug the nRF52 board into the USB port of your machine.
+In the directory where cloned the `lf-buckler` repository (e.g. `~/lf-bucker`):
 ```
-sudo apt update && sudo apt upgrade -y
-sudo apt-get install openjdk-17-jre
-sudo apt-get install openjdk-17-jdk
+lfc src/BucklerLED.lf 
 ```
-
-### Lingua Franca Compiler
-Get the latest lingua franca compiler and add it to PATH. Replace with latest verision. Do this in your home directory. [LFC Releases](https://github.com/lf-lang/lingua-franca/releases).
+If your nRF52 does not have the Buckler board mounted on it, then:
 ```
-wget <lfc_link>
-tar xvf lfc_<version>.tar.gz
-./lfc_<version>/bin/lfc --version
+lfc src/BuiltInLEF.lf
 ```
-Add the compiler to path. There are many ways to do this. The instructions below use .bashrc.
-```
-vim ~/.bashrc
-```
-Add the following to the botton of the file. The run the source command to load into current shell instance.
-```
-export PATH="$HOME/lfc_0.2.0/bin/lfc:$PATH"
-source ~/.bashrc
-```
+These two programs flash three LEDs on the Buckler board and the nRF52, respectively.
+The second program also toggles a fourth LED when you push Button 1 on the board.
 
-## Clone this Repository
+You can equivalently compile these programs from within Visual Studio Code or the Epoch IDE using their own built-in mechanisms.
 
-```
-git clone https://github.com/icyphy/lf-buckler.git
-git submodule update --init --recursive
-```
-
-## Install Cross-Compilation and Loading Tools
-
-In order to get code compiling and loading over JTAG, you'll need at least two tools. Not required if using Lab VM.
-
-* [JLinkExe](https://www.segger.com/downloads/jlink). You want to the "J-Link Software and Documentation Pack". There are various packages available depending on operating system.
-
-* **arm-none-eabi-gcc** is the cross-compiler version of GCC for building embedded ARM code.
-
-  MacOS:
-  ```
-  $ brew tap ARMmbed/homebrew-formulae && brew update && brew install arm-none-eabi-gcc
-  ```
-
-  Ubuntu:
-  ```
-  $ sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa && sudo apt update && sudo apt install gcc-arm-embedded
-  ```
-
-## Use lfc to compile the Lingua Franca file
-
-```
-cd src
-lfc BucklerLED.lf 
-```
-
-You should see something like this. Code will be auto flashed onto device if connected.
+You should see something like this. Code will be auto flashed onto the board if is connected.
 
 ```
 Generating code for: file:/Users/eal/git/lf-buckler/src/BucklerLED.lf
@@ -98,6 +57,72 @@ BUILD OPTIONS:
 Compiled binary is in /Users/eal/git/lf-buckler/bin
 Code generation finished.
 ```
+
+## Understanding the Lingua Franca Code
+
+In the `lf-buckler/src` directory are a number of Lingua Franca files (with `.lf` extensions).
+These are best viewed within VS Code or Epoch, but any text editor will do.
+VS Code and Epoch both provide syntax highlighting, which makes the code easier to read,
+and, most importantly, an automatically generated diagram that shows you the structure of the code.
+
+The following example programs will help you understand how to write programs for these boards:
+
+* `BucklerLED.lf`: A reactor the blinks LEDs on the Buckler board. Import this reactor into other programs to have a distinctive flashing pattern that tells you that your program is alive.
+* `BuiltInLED.lf`: Similar to `BucklerLED.lf`, but using only the nRF52 board, without the Buckler daughter card. Also, this program shows you how to react to button pushes on the board.
+
+# Setting Up Your Machine
+
+The following instructions will guide you to set up your macOS or Ubuntu machine to use Lingua Franca to program the nRF52 board with or without the Berkeley Buckler daughter card. The installation requires sudo permissions on the machines. These instructions can be used to create or update a virtual machine image.
+
+### Java Installation
+Java 17 or above is required for Lingua Franca code generation. On Ubuntu:
+
+```
+sudo apt update && sudo apt upgrade -y
+sudo apt-get install openjdk-17-jre
+sudo apt-get install openjdk-17-jdk
+```
+
+On macOS, you can [download from Oracle](https://www.oracle.com/java/technologies/downloads/#jdk17-mac) or [OpenJDK](https://openjdk.org).
+
+### Lingua Franca Compiler
+
+[Download the Lingua Franca compiler, VS Code extension, or Epoch IDE](https://www.lf-lang.org/download) (Integrated Development Environment).
+For convenient access to the command-line compiler, add it to PATH. There are many ways to do this. The instructions below use .bashrc.
+```
+vim ~/.bashrc
+```
+Add the following to the botton of the file. The run the source command to load into current shell instance.
+```
+export PATH="$HOME/lfc_0.3.0/bin/lfc:$PATH"
+source ~/.bashrc
+```
+Replace the above `$HOME/lfc_0.3.0` wiht the actual path to the version you downloaded.
+
+## Clone this Repository
+
+```
+git clone https://github.com/icyphy/lf-buckler.git
+git submodule update --init --recursive
+```
+
+## Install Cross-Compilation and Loading Tools
+
+In order to get code compiling and loading over JTAG, you'll need at least two tools. Not required if using Lab VM.
+
+* [JLinkExe](https://www.segger.com/downloads/jlink). You want to the "J-Link Software and Documentation Pack". There are various packages available depending on operating system.
+
+* **arm-none-eabi-gcc** is the cross-compiler version of GCC for building embedded ARM code.
+
+  MacOS:
+  ```
+  $ brew tap ARMmbed/homebrew-formulae && brew update && brew install arm-none-eabi-gcc
+  ```
+
+  Ubuntu:
+  ```
+  $ sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa && sudo apt update && sudo apt install gcc-arm-embedded
+  ```
 
 ## Details
 

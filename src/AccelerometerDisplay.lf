@@ -1,0 +1,40 @@
+/**
+ * Display three dimensions of accelerometer measurements
+ * plus time, for a total of four dimensions.
+ * @author Edward A. Lee
+ */
+target C {
+    threading: false,
+    build: "../scripts/build_nrf_unix.sh Display.lf",
+};
+
+import Accelerometer from "lib/Accelerometer.lf";
+import Display from "lib/Display.lf";
+
+preamble {=
+    #include <stdio.h>
+=}
+
+main reactor {
+    a = new Accelerometer();
+    dx = new Display(row = 0);
+    dy = new Display(row = 1);
+    
+    timer t(0, 250 msec);
+    
+    state count:int(0);
+        
+    reaction(t) -> a.trigger {=
+        lf_set(a.trigger, true);
+    =}
+    reaction(a.x, a.z) -> dx.message {=
+        static char x[BUCKLER_DISPLAY_WIDTH + 1];
+        snprintf(x, BUCKLER_DISPLAY_WIDTH + 1, "x:%d z:%d", a.x->value, a.z->value);
+        lf_set(dx.message, x);
+    =}
+    reaction(a.y) -> dy.message {=
+        static char y[BUCKLER_DISPLAY_WIDTH + 1];
+        snprintf(y, BUCKLER_DISPLAY_WIDTH + 1, "y:%d t:%d", a.y->value, (self->count++)/4);
+        lf_set(dy.message, y);
+    =}
+}

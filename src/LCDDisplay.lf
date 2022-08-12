@@ -1,0 +1,32 @@
+/**
+ * Display a count of seconds on the LCD display of the Buckler board.
+ * @author Edward A. Lee
+ */
+target C {
+    threading: false,
+    build: "../scripts/build_nrf_unix.sh Display.lf",
+};
+
+// To generate a distinctive LED flashing pattern when operating.
+import FlashingLEDs from "BucklerLED.lf";
+import Display from "lib/Display.lf";
+
+main reactor {
+    d0 = new Display(row = 0);
+    d1 = new Display(row = 1);
+    f = new FlashingLEDs();    // To show liveness.
+    
+    timer t(0, 1 sec);
+    
+    state count:int(0);
+    
+    reaction(t) -> d0.message, d1.message {=
+        lf_set(d0.message, "Seconds:");
+        // Print into a string the count of seconds.
+        // Use a static array here because the type of the Display input
+        // is string and dynamically allocated memory will not be freed.
+        static char message[12];
+        snprintf(message, 12, "%d", self->count++);
+        lf_set(d1.message, message);
+    =}
+}

@@ -1,3 +1,8 @@
+/**
+ * Toggle LEDs on the nRF52 board periodically and in response to
+ * a button push.
+ * @author Abhi Gundrala
+ */
 target C {
     threading: false,
     cmake: false, // FIXME: build option should disable this.
@@ -35,7 +40,8 @@ preamble {=
 =}
 
 /**
- * Importable reactor that flashes a distinctive pattern.
+ * Flash a distinctive pattern on three LEDs on the nRF52 and,
+ * in response to pushing button 1, toggle the fourth LED.
  * This can be usefully included in other programs to indicate liveness.
  */
 reactor FlashingLEDs {

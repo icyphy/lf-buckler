@@ -1,0 +1,44 @@
+/**
+ * Sequence through the LEDs on the Buckler daughter board periodically.
+ * Fashioned after `buckler/software/apps/blink`.
+ * @author Edward A. Lee
+ */
+target C {
+    threading: false,
+    build: "../scripts/build_nrf_unix.sh",
+};
+
+preamble {=
+    #include "buckler.h"    // Defines BUCKLER_LED...
+    #include "nrf_gpio.h"   // Defines nrf_gpio...
+    #include "nrfx_gpiote.h"
+    // LED array
+    static uint8_t LEDS[3] = {BUCKLER_LED0, BUCKLER_LED1, BUCKLER_LED2};
+=}
+
+main reactor {
+    timer t(0, 500 msec);
+    state count:int(0);
+    reaction(startup) {=
+        ret_code_t error_code = NRF_SUCCESS;
+
+        // Initialize GPIO driver.
+        if (!nrfx_gpiote_is_init()) {
+            error_code = nrfx_gpiote_init();
+        }
+        APP_ERROR_CHECK(error_code);
+        
+        // Configure LEDs.
+        // Manually-controlled (simple) output, initially set.
+        nrfx_gpiote_out_config_t out_config = NRFX_GPIOTE_CONFIG_OUT_SIMPLE(true);
+        for (int i=0; i<3; i++) {
+            error_code = nrfx_gpiote_out_init(LEDS[i], &out_config);
+            APP_ERROR_CHECK(error_code);
+        }
+    =}
+    reaction(t) {=
+        printf("Toggle LED %d\n", self->count);
+        nrf_gpio_pin_toggle(LEDS[self->count++]);
+        if (self->count >= 3) self->count = 0; 
+    =}
+}

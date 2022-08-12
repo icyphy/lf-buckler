@@ -25,7 +25,6 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ***************/
 
 /**
- * /**
  * Platform API support for the C target of Lingua Franca.
  * This file is a variant for the C target for nRF52x + Buckler,
  * based on the generic platform.h in LF.
