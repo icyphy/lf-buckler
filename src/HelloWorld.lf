@@ -1,0 +1,22 @@
+/**
+ * Hello World example from chapter 1.
+ * To build and run this, do
+ * ```
+ *     cd ~/lf-buckler
+ *     lfc src/HelloWorld.lf
+ *     cd src-gen/HelloWorld
+ *     make rtt
+ * ```
+ * The last line opens terminal windows that show the printf output.
+ * @author Edward A. Lee
+ */
+target C {
+    build: "../scripts/build_nrf_unix.sh",
+    threading: false,
+}
+main reactor {
+    timer t(0, 1 sec)
+    reaction(t) {=
+        printf("Hello world\n");
+    =}
+}
