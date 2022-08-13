@@ -1,6 +1,10 @@
 /**
  * Toggle LEDs on the nRF52 board periodically and in response to
- * a button push. 
+ * a button push.
+ * 
+ * NOTE: This uses the legacy driver API and should be updated to use
+ * nrfx_gpiote.h.
+ * 
  * @author Abhi Gundrala
  */
 target C {
@@ -26,15 +30,9 @@ preamble {=
     nrf_int gpio_int = {GPIOTE_IRQn, 0, NULL};
     void* p_btn_trigger;
     void btn_pin_handle(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity) {
-        INT_RAISED = -1; // TODO
-        lf_mutex_t* gpio_mutex = &gpio_int;
-        lf_mutex_lock(&gpio_int);
-        
         // interrupt body
         lf_schedule(p_btn_trigger, 0);
         printf("DEBUG: interrupt\n");
-
-        lf_mutex_unlock(&gpio_int);
     }
 =}
 
@@ -70,10 +68,6 @@ reactor FlashingLEDs {
         nrf_drv_gpiote_in_config_t in_config = GPIOTE_CONFIG_IN_SENSE_HITOLO(true); // falling edge interrupt
         in_config.pull = NRF_GPIO_PIN_PULLUP;
         err_code = nrf_drv_gpiote_in_init(BTN1, &in_config, btn_pin_handle);
-        
-        // initialize gpio mutex
-        lf_mutex_t* gpio_mutex = &gpio_int;
-        lf_mutex_init(gpio_mutex);
 
         APP_ERROR_CHECK(err_code);
         nrf_drv_gpiote_in_event_enable(BTN1, true);
