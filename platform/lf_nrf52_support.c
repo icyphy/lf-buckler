@@ -209,12 +209,10 @@ int lf_mutex_init(lf_mutex_t* mutex) {
 
 /**
  * Pause execution for a number of nanoseconds.
+ * This implementation busy waits until the time reported by lf_clock_gettime()
+ * elapses by more than the requested time.
  *
- * A Linux-specific clock_nanosleep is used underneath that is supposedly more
- * accurate.
- *
- * @return 0 for success, or -1 for failure. In case of failure, errno will be
- *  set appropriately (see `man 2 clock_nanosleep`).
+ * @return 0 for success, or -1 if interrupted.
  */
 int lf_nanosleep(instant_t requested_time) {
     instant_t target_time;
@@ -234,7 +232,7 @@ int lf_nanosleep(instant_t requested_time) {
     while(cur_time <= target_time) {
         lf_clock_gettime(&cur_time);
         if (INT_RAISED != 0) {
-            printf("DEBUG: INT RAISE \n");
+            printf("DEBUG: Interrupt raised during lf_nanosleep.\n");
             break;
         }
     }
@@ -244,7 +242,7 @@ int lf_nanosleep(instant_t requested_time) {
         lf_mutex_lock((lf_mutex_t*)head);
         head = head->next;
     }
-    // check if interrupted and return -1 on interrupt after wait
-    // this will force the event queue to be checked again
+    // Check whether interrupted and return -1 on interrupt after wait.
+    // This will force the event queue to be checked again.
     return INT_RAISED;
 }
