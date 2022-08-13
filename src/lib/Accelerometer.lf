@@ -1,23 +1,19 @@
 /**
  * Reactor that outputs accelerometer readings.
+ * 
+ * Documentation for the SAADC drivers
+ * (Successive Approximation Analog-to-Digital Converter)
+ * can be found at:
+ *     https://infocenter.nordicsemi.com/topic/com.nordic.infocenter.sdk5.v15.3.0/group__nrfx__saadc.html
+ * 
  * @author Edward A. Lee
  */
 target C;
 
 preamble {=
-    #include "app_error.h"
-    #include "nrf.h"
-    #include "nrf_delay.h"
-    #include "nrf_gpio.h"
-    #include "nrf_log.h"
-    #include "nrf_log_ctrl.h"
-    #include "nrf_log_default_backends.h"
-    #include "nrf_pwr_mgmt.h"
-    #include "nrf_serial.h"
     #include "nrfx_gpiote.h"
     #include "nrfx_saadc.h"
-    
-    #include "buckler.h"
+    #include "buckler.h"        // Defines BUCKLER_ANALOG_ACCEL_...
     
     // ADC channels
     #define X_CHANNEL 0
@@ -26,15 +22,15 @@ preamble {=
     
     // callback for SAADC events
     void saadc_callback (nrfx_saadc_evt_t const * p_event) {
-      // don't care about adc callbacks
+        // Ignore ADC callbacks.
     }
     
-    // sample a particular analog channel in blocking mode
-    nrf_saadc_value_t sample_value (uint8_t channel) {
-      nrf_saadc_value_t val;
-      ret_code_t error_code = nrfx_saadc_sample_convert(channel, &val);
-      APP_ERROR_CHECK(error_code);
-      return val;
+    // Sample a particular analog channel in blocking mode
+    nrf_saadc_value_t sample_value(uint8_t channel) {
+        nrf_saadc_value_t val;
+        ret_code_t error_code = nrfx_saadc_sample_convert(channel, &val);
+        APP_ERROR_CHECK(error_code);
+        return val;
     }
     
     // Global variable to prevent initializing more than once.

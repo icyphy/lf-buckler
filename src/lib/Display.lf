@@ -2,24 +2,26 @@
  * Reactor to display a message on the LCD display.
  * Each instance of this reactor has a parameter that specifies
  * which row of the display to use.
+ * 
+ * Documentation for the SPI drivers can be found here:
+ *     https://infocenter.nordicsemi.com/topic/com.nordic.infocenter.sdk5.v15.3.0/group__nrf__spi.html
+ * 
  * @author Edward A. Lee
  */
 target C;
 
 preamble {=
-    #include "app_error.h"
-    #include "nrf.h"
-    #include "nrf_serial.h"
     #include "nrfx_gpiote.h"
-    #include "nrf_drv_spi.h"
+    #include "nrfx_spi.h"
     
-    #include "buckler.h"
-    #include "display.h"
+    #include "display.h"        // Defined Buckler display functions and constants.
           
     // Width of the display in characters.
     #define BUCKLER_DISPLAY_WIDTH 16
     
     // The SPI instance has to be global for the display to work across functions.
+    // NOTE: display.h in Buckler library uses legacy nrf drivers rather than nrfx.
+    // Hence, this type is a legacy type.
     nrf_drv_spi_t spi_instance = NRF_DRV_SPI_INSTANCE(1);
 
     // Buffer to use to write messages to the display.

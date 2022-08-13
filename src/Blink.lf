@@ -9,9 +9,8 @@ target C {
 };
 
 preamble {=
-    #include "buckler.h"    // Defines BUCKLER_LED...
-    #include "nrf_gpio.h"   // Defines nrf_gpio...
-    #include "nrfx_gpiote.h"
+    #include "buckler.h"        // Defines BUCKLER_LED...
+    #include "nrfx_gpiote.h"    // Defines nrfx_...
     // LED array
     static uint8_t LEDS[3] = {BUCKLER_LED0, BUCKLER_LED1, BUCKLER_LED2};
 =}
@@ -38,7 +37,7 @@ main reactor {
     =}
     reaction(t) {=
         printf("Toggle LED %d\n", self->count);
-        nrf_gpio_pin_toggle(LEDS[self->count++]);
+        nrfx_gpiote_out_toggle(LEDS[self->count++]);
         if (self->count >= 3) self->count = 0; 
     =}
 }

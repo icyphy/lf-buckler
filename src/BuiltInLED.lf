@@ -1,6 +1,6 @@
 /**
  * Toggle LEDs on the nRF52 board periodically and in response to
- * a button push.
+ * a button push. 
  * @author Abhi Gundrala
  */
 target C {
@@ -9,7 +9,7 @@ target C {
 };
 
 preamble {=
-    #include "nrf_gpio.h"   // Defines nrf_gpio...
+    #include "nrf_gpio.h"       // Defines nrf_gpio...
     #include "nrf_drv_gpiote.h" // nrf_gpio interrupt driver
     #include "nrf_log.h"
     #include "nrf_log_ctrl.h"
@@ -25,7 +25,7 @@ preamble {=
     // nrf interrupt
     nrf_int gpio_int = {GPIOTE_IRQn, 0, NULL};
     void* p_btn_trigger;
-    void btn_pin_handle(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
+    void btn_pin_handle(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity) {
         INT_RAISED = -1; // TODO
         lf_mutex_t* gpio_mutex = &gpio_int;
         lf_mutex_lock(&gpio_int);
@@ -56,11 +56,6 @@ reactor FlashingLEDs {
         // Configure LEDs by defining their GPIO pins as outputs.
         // Initially, the LEDs will be on.
         ret_code_t err_code;
-
-        err_code = NRF_LOG_INIT(NULL);
-        APP_ERROR_CHECK(err_code);
-        NRF_LOG_DEFAULT_BACKENDS_INIT();
-        printf("Log initialized!\n");
 
         err_code = nrf_drv_gpiote_init();
         APP_ERROR_CHECK(err_code);
