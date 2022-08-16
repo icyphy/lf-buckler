@@ -63,7 +63,7 @@ uint8_t INT_RAISED;
  * For CLOCK_MONOTONIC, it is the difference between those
  * clocks at the start of the execution.
  */
-interval_t _lf_epoch_offset = 0LL;
+interval_t _lf_time_epoch_offset = 0LL;
 
 // Interrupt list pointers
 nrf_int* int_list_head = NULL;
@@ -99,13 +99,23 @@ struct timespec convert_ns_to_timespec(instant_t t) {
  * time reported by CLOCK_REALTIME.
  */
 void calculate_epoch_offset() {
-    // unimplemented - on the nrf, probably not possible to get a bearing on real time
+    // unimplemented - on the nrf, probably not possible to get a bearing on real time.
+    _lf_time_epoch_offset = 0LL;
 }
+
+/**
+ * To handle overflow of a 32-bit timer with microsecond resolution,
+ * record the previous query to the timer here.
+ */
+uint32_t _lf_previous_timer_time = 0u;
 
 /**
  * Initialize the LF clock.
  */
 void lf_initialize_clock() {
+    _lf_time_epoch_offset = 0LL;
+    _lf_previous_timer_time = 0u;
+
     // Initialize TIMER3 as a free running timer
     // 1) Set to be a 32 bit timer
     // 2) Set to count at 1MHz
@@ -116,14 +126,7 @@ void lf_initialize_clock() {
     NRF_TIMER3->PRESCALER = 4;
     NRF_TIMER3->TASKS_CLEAR = 1;
     NRF_TIMER3->TASKS_START = 1;
-    
 }
-
-/**
- * To handle overflow of a 32-bit timer with microsecond resolution,
- * record the previous query to the timer here.
- */
-uint32_t _lf_previous_timer_time = 0u;
 
 /**
  * Fetch the value of _LF_CLOCK (see lf_linux_support.h) and store it in tp. The
@@ -151,11 +154,11 @@ int lf_clock_gettime(instant_t* t) {
     // Handle possible overflow.
     uint32_t current_timer_time = NRF_TIMER3->CC[1];
     if (current_timer_time < _lf_previous_timer_time) {
-        // Overflow has occurred. Use _lf_epoch_offset to correct.
-        _lf_epoch_offset += (1LL << 32) * 1000;
+        // Overflow has occurred. Use _lf_time_epoch_offset to correct.
+        _lf_time_epoch_offset += (1LL << 32) * 1000;
     }
 
-    *t = ((instant_t)current_timer_time) * 1000 + _lf_epoch_offset;
+    *t = ((instant_t)current_timer_time) * 1000 + _lf_time_epoch_offset;
     _lf_previous_timer_time = current_timer_time;
     return 0;
 }
