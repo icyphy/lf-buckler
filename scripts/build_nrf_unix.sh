@@ -42,11 +42,11 @@ APP_SOURCES += $(notdir $(wildcard ./*.c))
 NRF_BASE_DIR = %s/nrf52x-base/
 
 # Include board Makefile (if any)
-include %s/buckler_revC/Board.mk
+include %s/Board.mk
 
 # Include main Makefile
 include $(NRF_BASE_DIR)make/AppMakefile.mk
-' $PROJECT_ROOT/buckler/software $PROJECT_ROOT/platform > $LF_SOURCE_GEN_DIRECTORY/Makefile
+' $PROJECT_ROOT/buckler/software $PROJECT_ROOT/buckler/software/boards/buckler_revC > $LF_SOURCE_GEN_DIRECTORY/Makefile
 
 echo "Created $LF_SOURCE_GEN_DIRECTORY/Makefile"
 
