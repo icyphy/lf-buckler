@@ -46,7 +46,7 @@ include %s/buckler_revC/Board.mk
 
 # Include main Makefile
 include $(NRF_BASE_DIR)make/AppMakefile.mk
-' $PROJECT_ROOT/buckler/software $PROJECT_ROOT/buckler/software/boards > $LF_SOURCE_GEN_DIRECTORY/Makefile
+' $PROJECT_ROOT/buckler/software $PROJECT_ROOT/platform > $LF_SOURCE_GEN_DIRECTORY/Makefile
 
 echo "Created $LF_SOURCE_GEN_DIRECTORY/Makefile"
 
