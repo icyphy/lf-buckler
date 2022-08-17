@@ -159,6 +159,7 @@ int lf_clock_gettime(instant_t* t) {
     }
 
     *t = ((instant_t)current_timer_time) * 1000 + _lf_time_epoch_offset;
+
     _lf_previous_timer_time = current_timer_time;
     return 0;
 }
@@ -227,6 +228,8 @@ int lf_nanosleep(instant_t requested_time) {
     lf_clock_gettime(&target_time);
     target_time += requested_time;
 
+    // printf("Entering nanosleep...\n");
+
     // enable all interrupts
     nrf_int* head;
     head = int_list_head;
@@ -235,14 +238,17 @@ int lf_nanosleep(instant_t requested_time) {
         head = head->next;
     }
 
+    // printf("At time " PRINTF_TIME " sleeping until " PRINTF_TIME "\n", cur_time, target_time);
+
     INT_RAISED = 0;
-    while(cur_time <= target_time) {
+    do {
+        // cur_time gets initialized here
         lf_clock_gettime(&cur_time);
         if (INT_RAISED != 0) {
             printf("DEBUG: Interrupt raised during lf_nanosleep.\n");
             break;
         }
-    }
+    } while(cur_time <= target_time);
     // disable interrupts
     head = int_list_head;
     while (head != NULL) {
