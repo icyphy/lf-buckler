@@ -102,8 +102,8 @@ Replace the above `$HOME/lfc_0.3.0` wiht the actual path to the version you down
 ## Clone this Repository
 
 ```
-git clone https://github.com/icyphy/lf-buckler.git
-git submodule update --init --recursive
+$ git clone https://github.com/icyphy/lf-buckler.git
+$ git submodule update --init --recursive
 ```
 
 ## Install Cross-Compilation and Loading Tools
@@ -111,6 +111,13 @@ git submodule update --init --recursive
 In order to get code compiling and loading over JTAG, you'll need at least two tools. Not required if using Lab VM.
 
 * [JLinkExe](https://www.segger.com/downloads/jlink). You want to the "J-Link Software and Documentation Pack". There are various packages available depending on operating system.
+
+  Ubuntu (64-bit):
+  ```
+  $ apt-get install wget gdebi
+  $ wget https://www.segger.com/downloads/jlink/JLink_Linux_x86_64.deb 
+  $ sudo dpkg -i JLink_Linux_x86_64.deb
+  ```
 
 * **arm-none-eabi-gcc** is the cross-compiler version of GCC for building embedded ARM code.
 
@@ -121,7 +128,7 @@ In order to get code compiling and loading over JTAG, you'll need at least two t
 
   Ubuntu:
   ```
-  $ sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa && sudo apt update && sudo apt install gcc-arm-embedded
+  $ sudo apt-get update -y && sudo apt-get install -y gcc-arm-none-eabi
   ```
 
 ## Details
