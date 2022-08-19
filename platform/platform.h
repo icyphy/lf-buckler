@@ -55,6 +55,31 @@ typedef _interval_t interval_t;
  */
 typedef _microstep_t microstep_t;
 
+// Define mutex functions even though the runtime is unthreaded because they are
+// needed to support interrupts.
+
+/**
+ * Initialize a mutex.
+ * 
+ * @return 0 on success, platform-specific error number otherwise.
+ */
+extern int lf_mutex_init(lf_mutex_t* mutex);
+
+/**
+ * Lock a mutex.
+ * 
+ * @return 0 on success, platform-specific error number otherwise.
+ */
+extern int lf_mutex_lock(lf_mutex_t* mutex);
+
+/** 
+ * Unlock a mutex.
+ * 
+ * @return 0 on success, platform-specific error number otherwise.
+ */
+extern int lf_mutex_unlock(lf_mutex_t* mutex);
+
+
 #ifdef NUMBER_OF_WORKERS
 
 /**
@@ -79,28 +104,6 @@ extern int lf_thread_create(lf_thread_t* thread, void *(*lf_thread) (void *), vo
  * @return 0 on success, platform-specific error number otherwise.
  */
 extern int lf_thread_join(lf_thread_t thread, void** thread_return);
-
-/**
- * Initialize a mutex.
- * 
- * @return 0 on success, platform-specific error number otherwise.
- */
-extern int lf_mutex_init(lf_mutex_t* mutex);
-
-/**
- * Lock a mutex.
- * 
- * @return 0 on success, platform-specific error number otherwise.
- */
-extern int lf_mutex_lock(lf_mutex_t* mutex);
-
-/** 
- * Unlock a mutex.
- * 
- * @return 0 on success, platform-specific error number otherwise.
- */
-extern int lf_mutex_unlock(lf_mutex_t* mutex);
-
 
 /** 
  * Initialize a conditional variable.
