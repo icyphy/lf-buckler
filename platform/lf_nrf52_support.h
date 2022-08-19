@@ -89,7 +89,7 @@ typedef struct nrf_int {
     struct nrf_int* next;
 } nrf_int;
 
-typedef nrf_int _lf_mutex_t;
+typedef struct nrf_int _lf_mutex_t;
 
 // TODO: find a better way to implement this
 /**
@@ -115,7 +115,6 @@ typedef int64_t _interval_t;
  * Microstep instant.
  */
 typedef uint32_t _microstep_t;
-
 
 /**
  * For user-friendly reporting of time values, the buffer length required.
