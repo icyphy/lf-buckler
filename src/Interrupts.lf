@@ -12,7 +12,6 @@ target C {
 preamble {=
     #include "nrfx_gpiote.h"    // Defines nrfx_...
     #include "buckler.h"        // Defines BUCKLER_LED...
-    #include "nrf_delay.h"      // Defines nrf_delay()
     
     void button_handler(long unsigned int pin,  nrf_gpiote_polarity_t polarity) {
         // Your code goes here.
