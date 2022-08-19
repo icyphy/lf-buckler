@@ -38,7 +38,6 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "lf_nrf52_support.h"
 #include "../platform.h"
 
-#include "nrf_delay.h"
 #include "nrf.h"
 #include "nrf_drv_timer.h"
 #include "app_error.h"
@@ -48,13 +47,11 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifdef NUMBER_OF_WORKERS
 #endif
 
-uint8_t INT_RAISED = 0;
-
 /**
  * Keep track of interrupts being raised.
  * Allow sleep to exit with nonzero return on interrupt.
  */
-uint8_t INT_RAISED;
+uint8_t INT_RAISED = 0;
 
 /**
  * Offset to _LF_CLOCK that would convert it
@@ -68,8 +65,6 @@ interval_t _lf_time_epoch_offset = 0LL;
 // Interrupt list pointers
 nrf_int* int_list_head = NULL;
 nrf_int* int_list_cur = NULL;
-
-
 
 /**
  * Convert a _lf_time_spec_t ('tp') to an instant_t representation in
@@ -167,7 +162,6 @@ int lf_clock_gettime(instant_t* t) {
 /**
  * Lock a mutex.
  * Disable a specific interrupt number on NVIC.
- * 
  * @return 0 on success, platform-specific error number otherwise.
  */
 int lf_mutex_lock(lf_mutex_t* mutex) {
@@ -181,7 +175,6 @@ int lf_mutex_lock(lf_mutex_t* mutex) {
 /** 
  * Unlock a mutex.
  * Enable a specific interrupt number on NVIC.
- * 
  * @return 0 on success, platform-specific error number otherwise.
  */
 int lf_mutex_unlock(lf_mutex_t* mutex) {
@@ -229,6 +222,7 @@ int lf_nanosleep(instant_t requested_time) {
     target_time += requested_time;
 
     // printf("Entering nanosleep...\n");
+    INT_RAISED = 0;
 
     // enable all interrupts
     nrf_int* head;
@@ -240,7 +234,6 @@ int lf_nanosleep(instant_t requested_time) {
 
     // printf("At time " PRINTF_TIME " sleeping until " PRINTF_TIME "\n", cur_time, target_time);
 
-    INT_RAISED = 0;
     do {
         // cur_time gets initialized here
         lf_clock_gettime(&cur_time);
@@ -255,7 +248,9 @@ int lf_nanosleep(instant_t requested_time) {
         lf_mutex_lock((lf_mutex_t*)head);
         head = head->next;
     }
+    int result = (INT_RAISED == 0)? 0 : -1;
+    INT_RAISED = 0;
     // Check whether interrupted and return -1 on interrupt after wait.
     // This will force the event queue to be checked again.
-    return INT_RAISED;
+    return result;
 }
