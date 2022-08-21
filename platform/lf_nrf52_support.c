@@ -39,19 +39,30 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../platform.h"
 
 #include "nrf.h"
-#include "nrf_drv_timer.h"
+#include "nrfx_timer.h"
+#include "nrf_nvic.h"
+#include "nrf_soc.h"
 #include "app_error.h"
-#include <stdlib.h>
-#include <string.h>
 
 #ifdef NUMBER_OF_WORKERS
 #endif
+
+
+/**
+ * lf global timer instance
+ * timerId = 3 TIMER3
+ */
+static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
 
 /**
  * Keep track of interrupts being raised.
  * Allow sleep to exit with nonzero return on interrupt.
  */
-uint8_t INT_RAISED = 0;
+bool _lf_interrupted = false;
+uint8_t _lf_nested_region = 0;
+
+// timer event handler
+void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context);
 
 /**
  * Offset to _LF_CLOCK that would convert it
@@ -61,10 +72,6 @@ uint8_t INT_RAISED = 0;
  * clocks at the start of the execution.
  */
 interval_t _lf_time_epoch_offset = 0LL;
-
-// Interrupt list pointers
-nrf_int* int_list_head = NULL;
-nrf_int* int_list_cur = NULL;
 
 /**
  * Convert a _lf_time_spec_t ('tp') to an instant_t representation in
@@ -104,6 +111,18 @@ void calculate_epoch_offset() {
  */
 uint32_t _lf_previous_timer_time = 0u;
 
+void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context)
+{
+    // interrupted by timer first
+    if (event_type == NRF_TIMER_EVENT_COMPARE2)
+        _lf_interrupted = false;
+    // overflow handle
+    if (event_type == NRF_TIMER_EVENT_COMPARE3) {
+        nrfx_timer_clear(&g_lf_timer_inst);
+        _lf_time_epoch_offset += (1LL << 32) * 1000;
+    }
+}
+
 /**
  * Initialize the LF clock.
  */
@@ -116,11 +135,26 @@ void lf_initialize_clock() {
     // 2) Set to count at 1MHz
     // 3) Clear the timer
     // 4) Start the timer
-    
-    NRF_TIMER3->BITMODE = 3;
-    NRF_TIMER3->PRESCALER = 4;
-    NRF_TIMER3->TASKS_CLEAR = 1;
-    NRF_TIMER3->TASKS_START = 1;
+
+    nrfx_timer_config_t timer_conf = {
+        .frequency = NRF_TIMER_FREQ_1MHz,
+        .mode = NRF_TIMER_MODE_TIMER,
+        .bit_width = NRF_TIMER_BIT_WIDTH_32,
+        .interrupt_priority = 7, // lowest
+        .p_context = NULL,
+    };
+
+    nrfx_timer_init(&g_lf_timer_inst, &timer_conf, &lf_timer_event_handler);
+    // overflow channel
+    nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, ~0x0, true);
+    nrfx_timer_enable(&g_lf_timer_inst);
+
+    sd_nvic_critical_region_enter(&_lf_nested_region);
+
+    //NRF_TIMER3->BITMODE = 3;
+    //NRF_TIMER3->PRESCALER = 4;
+    //NRF_TIMER3->TASKS_CLEAR = 1;
+    //NRF_TIMER3->TASKS_START = 1;
 }
 
 /**
@@ -143,19 +177,11 @@ int lf_clock_gettime(instant_t* t) {
         // errno = EFAULT; //TODO: why does this not work with new build process?
         return -1;
     }
-    
-    NRF_TIMER3->TASKS_CAPTURE[1] = 1;
-
-    // Handle possible overflow.
-    uint32_t current_timer_time = NRF_TIMER3->CC[1];
-    if (current_timer_time < _lf_previous_timer_time) {
-        // Overflow has occurred. Use _lf_time_epoch_offset to correct.
-        _lf_time_epoch_offset += (1LL << 32) * 1000;
-    }
-
-    *t = ((instant_t)current_timer_time) * 1000 + _lf_time_epoch_offset;
-
-    _lf_previous_timer_time = current_timer_time;
+    uint32_t curr_time;
+    // capture latest timer value
+    curr_time = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL1);
+    *t = ((instant_t)curr_time) * 1000 + _lf_time_epoch_offset;
+    _lf_previous_timer_time = curr_time;
     return 0;
 }
 
@@ -165,10 +191,6 @@ int lf_clock_gettime(instant_t* t) {
  * @return 0 on success, platform-specific error number otherwise.
  */
 int lf_mutex_lock(lf_mutex_t* mutex) {
-    if (mutex == NULL) {
-        return -1;
-    }
-    NVIC_DisableIRQ(mutex->int_num);
     return 0;
 }
 
@@ -178,10 +200,6 @@ int lf_mutex_lock(lf_mutex_t* mutex) {
  * @return 0 on success, platform-specific error number otherwise.
  */
 int lf_mutex_unlock(lf_mutex_t* mutex) {
-    if (mutex == NULL) {
-        return -1;
-    }
-    NVIC_EnableIRQ(mutex->int_num);
     return 0;
 }
 
@@ -192,19 +210,6 @@ int lf_mutex_unlock(lf_mutex_t* mutex) {
  * @return 0 on success, platform-specific error number otherwise.
  */
 int lf_mutex_init(lf_mutex_t* mutex) {
-    if (mutex == NULL) {
-        return -1;
-    }
-    NVIC_SetPriority(mutex->int_num, mutex->priority);
-    lf_mutex_lock(mutex);
-    // add to interrupt to global int list
-    nrf_int* cpy_int = (nrf_int*) malloc(sizeof(nrf_int));
-    memcpy(cpy_int, (nrf_int*)mutex, sizeof(nrf_int));
-    int_list_cur->next = cpy_int;
-    int_list_cur = cpy_int;
-    if (int_list_head == NULL) {
-        int_list_head = int_list_cur;
-    }
     return 0;
 }
 
@@ -216,40 +221,28 @@ int lf_mutex_init(lf_mutex_t* mutex) {
  * @return 0 for success, or -1 if interrupted.
  */
 int lf_nanosleep(instant_t requested_time) {
+    uint32_t target_timer_val;
     instant_t target_time;
-    instant_t cur_time;
+
     lf_clock_gettime(&target_time);
     target_time += requested_time;
+    target_timer_val = (requested_time - _lf_time_epoch_offset) / 1000;
 
-    // printf("Entering nanosleep...\n");
-    INT_RAISED = 0;
+    // enable nvic
+    sd_nvic_critical_region_exit(_lf_nested_region);
+    
+    // reset by timer interrupt callback
+    _lf_interrupted = true;
+    nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
 
-    // enable all interrupts
-    nrf_int* head;
-    head = int_list_head;
-    while (head != NULL) {
-        lf_mutex_unlock((lf_mutex_t*)head);
-        head = head->next;
-    }
-
-    // printf("At time " PRINTF_TIME " sleeping until " PRINTF_TIME "\n", cur_time, target_time);
-
-    do {
-        // cur_time gets initialized here
-        lf_clock_gettime(&cur_time);
-        if (INT_RAISED != 0) {
-            printf("DEBUG: Interrupt raised during lf_nanosleep.\n");
-            break;
-        }
-    } while(cur_time <= target_time);
-    // disable interrupts
-    head = int_list_head;
-    while (head != NULL) {
-        lf_mutex_lock((lf_mutex_t*)head);
-        head = head->next;
-    }
-    int result = (INT_RAISED == 0)? 0 : -1;
-    INT_RAISED = 0;
+    // wait for interrupt
+    sd_app_evt_wait();
+    // TODO: testing below
+    nrfx_timer_compare_int_disable(&g_lf_timer_inst, 2);
+    // disable nvic
+    sd_nvic_critical_region_enter(&_lf_nested_region);
+    
+    int result = (_lf_interrupted) ? -1 : 0;
     // Check whether interrupted and return -1 on interrupt after wait.
     // This will force the event queue to be checked again.
     return result;

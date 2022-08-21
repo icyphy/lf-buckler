@@ -27,16 +27,11 @@ preamble {=
 
     #define BTN1 NRF_GPIO_PIN_MAP(0, 13)
     // nrf interrupt
-    nrf_int gpio_int = {GPIOTE_IRQn, 0, NULL};
     void* p_btn_trigger;
     void btn_pin_handle(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity) {
         // interrupt body
-        // FIXME: The mutex should be acquired within lf_schedule().
-        lf_mutex_lock(&gpio_int);
         lf_schedule(p_btn_trigger, 0);
-        INT_RAISED = -1; // Signal to lf_nanosleep that there is a new event.
         printf("DEBUG: interrupt\n");
-        lf_mutex_unlock(&gpio_int);
     }
 =}
 
@@ -73,10 +68,6 @@ reactor FlashingLEDs {
         in_config.pull = NRF_GPIO_PIN_PULLUP;
         err_code = nrf_drv_gpiote_in_init(BTN1, &in_config, btn_pin_handle);
         APP_ERROR_CHECK(err_code);
-
-        // initialize gpio mutex
-        lf_mutex_t* gpio_mutex = &gpio_int;
-        lf_mutex_init(gpio_mutex);
 
         nrf_drv_gpiote_in_event_enable(BTN1, true);
     =}
