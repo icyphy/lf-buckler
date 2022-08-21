@@ -61,9 +61,6 @@ static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
 bool _lf_interrupted = false;
 uint8_t _lf_nested_region = 0;
 
-// timer event handler
-void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context);
-
 /**
  * Offset to _LF_CLOCK that would convert it
  * to epoch time.
@@ -111,14 +108,29 @@ void calculate_epoch_offset() {
  */
 uint32_t _lf_previous_timer_time = 0u;
 
-void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context)
-{
-    // interrupted by timer first
-    if (event_type == NRF_TIMER_EVENT_COMPARE2)
+/**
+ * Handles LF timer interrupts
+ * Using lf_timer instance -> id = 3
+ * channel2 -> channel for lf_nanosleep interrupt
+ * channel3 -> channel for overflow interrupt
+ *
+ * [in] event_type
+ *      channel that fired interrupt on timer
+ * [in] p_context
+ *      context passed to handler
+ * 
+ */
+void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
+    
+    // check if event triggered on channel 2
+    // sleep handle
+    if (event_type == NRF_TIMER_EVENT_COMPARE2) {
         _lf_interrupted = false;
+    }
+
+    // check if event triggered on channel 3
     // overflow handle
     if (event_type == NRF_TIMER_EVENT_COMPARE3) {
-        nrfx_timer_clear(&g_lf_timer_inst);
         _lf_time_epoch_offset += (1LL << 32) * 1000;
     }
 }
@@ -145,16 +157,13 @@ void lf_initialize_clock() {
     };
 
     nrfx_timer_init(&g_lf_timer_inst, &timer_conf, &lf_timer_event_handler);
-    // overflow channel
+    
+    // Enable an interrupt to occur on channel NRF_TIMER_CC_CHANNEL3
+    // when the timer reaches its maximum value and is about to overflow.
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, ~0x0, true);
     nrfx_timer_enable(&g_lf_timer_inst);
 
     sd_nvic_critical_region_enter(&_lf_nested_region);
-
-    //NRF_TIMER3->BITMODE = 3;
-    //NRF_TIMER3->PRESCALER = 4;
-    //NRF_TIMER3->TASKS_CLEAR = 1;
-    //NRF_TIMER3->TASKS_START = 1;
 }
 
 /**
@@ -177,39 +186,16 @@ int lf_clock_gettime(instant_t* t) {
         // errno = EFAULT; //TODO: why does this not work with new build process?
         return -1;
     }
-    uint32_t curr_time;
+    uint32_t curr_timer_time;
     // capture latest timer value
-    curr_time = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL1);
-    *t = ((instant_t)curr_time) * 1000 + _lf_time_epoch_offset;
-    _lf_previous_timer_time = curr_time;
-    return 0;
-}
-
-/**
- * Lock a mutex.
- * Disable a specific interrupt number on NVIC.
- * @return 0 on success, platform-specific error number otherwise.
- */
-int lf_mutex_lock(lf_mutex_t* mutex) {
-    return 0;
-}
-
-/** 
- * Unlock a mutex.
- * Enable a specific interrupt number on NVIC.
- * @return 0 on success, platform-specific error number otherwise.
- */
-int lf_mutex_unlock(lf_mutex_t* mutex) {
-    return 0;
-}
-
-/**
- * Initialize a mutex.
- * Set priority of interrupt number and enable.
- * 
- * @return 0 on success, platform-specific error number otherwise.
- */
-int lf_mutex_init(lf_mutex_t* mutex) {
+    curr_timer_time = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL1);
+    
+    // in case overflow interrupt was missed
+    if (_lf_previous_timer_time > curr_timer_time) {
+        _lf_time_epoch_offset += (1LL << 32) * 1000;
+    }
+    *t = ((instant_t)curr_timer_time) * 1000 + _lf_time_epoch_offset;
+    _lf_previous_timer_time = curr_timer_time;
     return 0;
 }
 
@@ -228,17 +214,16 @@ int lf_nanosleep(instant_t requested_time) {
     target_time += requested_time;
     target_timer_val = (requested_time - _lf_time_epoch_offset) / 1000;
 
+    // default set interrupted flag true unless timer interrupt
+    // callback fires then set flag false
+    _lf_interrupted = true;
+    // init timer interrupt for sleep time
+    nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
+    
     // enable nvic
     sd_nvic_critical_region_exit(_lf_nested_region);
-    
-    // reset by timer interrupt callback
-    _lf_interrupted = true;
-    nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
-
     // wait for interrupt
     sd_app_evt_wait();
-    // TODO: testing below
-    nrfx_timer_compare_int_disable(&g_lf_timer_inst, 2);
     // disable nvic
     sd_nvic_critical_region_enter(&_lf_nested_region);
     
