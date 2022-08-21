@@ -10,19 +10,20 @@ USE_BLE = 1
 
 # Get directory of this makefile
 BOARD_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+BUCKLER_DIR := $(BOARD_DIR)/../../buckler
 
 # Include any files in this directory in the build process
 BOARD_SOURCE_PATHS = $(BOARD_DIR)/.
-BOARD_SOURCE_PATHS += $(wildcard $(BOARD_DIR)/../../libraries/*/)
+BOARD_SOURCE_PATHS += $(wildcard $(BUCKLER_DIR)/software/libraries/*/)
 
 BOARD_HEADER_PATHS = $(BOARD_DIR)/.
 BOARD_HEADER_PATHS += $(BOARD_DIR)/../.
-BOARD_HEADER_PATHS += $(wildcard $(BOARD_DIR)/../../libraries/*/)
+BOARD_HEADER_PATHS += $(wildcard $(BUCKLER_DIR)/software/libraries/*/)
 
 BOARD_LINKER_PATHS = $(BOARD_DIR)/.
 
 BOARD_SOURCES = $(notdir $(wildcard $(BOARD_DIR)/./*.c))
-BOARD_SOURCES += $(notdir $(wildcard $(BOARD_DIR)/../../libraries/*/*.c))
+BOARD_SOURCES += $(notdir $(wildcard $(BUCKLER_DIR)/software/libraries/*/*.c))
 BOARD_AS = $(notdir $(wildcard $(BOARD_DIR)/./*.s))
 
 # Convert board to upper case
