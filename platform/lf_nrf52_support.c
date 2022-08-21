@@ -59,6 +59,7 @@ static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
  * Allow sleep to exit with nonzero return on interrupt.
  */
 bool _lf_interrupted = false;
+bool _lf_overflow_corrected = false;
 uint8_t _lf_nested_region = 0;
 
 /**
@@ -131,8 +132,11 @@ void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
     // check if event triggered on channel 3
     // overflow handle
     if (event_type == NRF_TIMER_EVENT_COMPARE3) {
-        _lf_time_epoch_offset += (1LL << 32) * 1000;
+        if (!_lf_overflow_corrected) {
+            _lf_time_epoch_offset += (1LL << 32) * 1000;
+        }
     }
+    _lf_overflow_corrected = false;
 }
 
 /**
@@ -193,6 +197,7 @@ int lf_clock_gettime(instant_t* t) {
     // in case overflow interrupt was missed
     if (_lf_previous_timer_time > curr_timer_time) {
         _lf_time_epoch_offset += (1LL << 32) * 1000;
+        _lf_overflow_corrected = true;
     }
     *t = ((instant_t)curr_timer_time) * 1000 + _lf_time_epoch_offset;
     _lf_previous_timer_time = curr_timer_time;
