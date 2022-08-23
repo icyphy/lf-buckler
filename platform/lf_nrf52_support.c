@@ -58,7 +58,7 @@ static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
  * Keep track of interrupts being raised.
  * Allow sleep to exit with nonzero return on interrupt.
  */
-bool _lf_interrupted = false;
+bool _lf_timer_interrupted = false;
 bool _lf_overflow_corrected = false;
 uint8_t _lf_nested_region = 0;
 
@@ -126,7 +126,7 @@ void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
     // check if event triggered on channel 2
     // sleep handle
     if (event_type == NRF_TIMER_EVENT_COMPARE2) {
-        _lf_interrupted = false;
+        _lf_timer_interrupted = true;
     }
 
     // check if event triggered on channel 3
@@ -219,9 +219,9 @@ int lf_nanosleep(instant_t requested_time) {
     target_time += requested_time;
     target_timer_val = (requested_time - _lf_time_epoch_offset) / 1000;
 
-    // default set interrupted flag true unless timer interrupt
-    // callback fires then set flag false
-    _lf_interrupted = true;
+    // timer interrupt flag default false
+    // callback fires and asserts bool
+    _lf_timer_interrupted = false;
     // init timer interrupt for sleep time
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
     
@@ -232,8 +232,8 @@ int lf_nanosleep(instant_t requested_time) {
     // disable nvic
     sd_nvic_critical_region_enter(&_lf_nested_region);
     
-    int result = (_lf_interrupted) ? -1 : 0;
-    // Check whether interrupted and return -1 on interrupt after wait.
+    int result = (_lf_timer_interrupted) ? 0 : -1;
+    // Check whether timer interrupted and return -1 on nont timer interrupt.
     // This will force the event queue to be checked again.
     return result;
 }
