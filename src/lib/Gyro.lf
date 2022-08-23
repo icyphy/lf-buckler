@@ -1,0 +1,89 @@
+/**
+ * Reactor that outputs gyro readings.
+ * Controlled by an integration signal to stop/start integration
+ */
+ target C;
+
+ preamble {=
+     #include "app_error.h"
+     #include "nrf.h"
+     #include "nrf_serial.h"
+     #include "nrfx_gpiote.h"
+     #include "nrf_twi_mngr.h"
+     
+     #include "buckler.h"
+     #include "lsm9ds1.h"
+ 
+     // global instance for use among methods.
+     NRF_TWI_MNGR_DEF(twi_mngr_instance, 5, 0);
+ 
+     // Flag indicating that gyro has been initialized.
+     bool buckler_gyro_initialized = false;
+ =}
+ 
+ /**
+  * Send integrated gyro angles when triggered.
+  * Start integration and continue on true triggers; stop on false
+  * 
+  * @param trigger
+  *      [input] trigger signal. integrate when true, idle when false
+  * 
+  * @param x, y, z
+  *      [output] integrated angle for corresponding axis
+  * 
+  */
+  reactor Gyro {
+     input trigger:bool;
+     // accumulated x angles
+     output x:float;
+     output y:float;
+     output z:float;
+ 
+     reaction(startup) {=
+         if (buckler_gyro_initialized)
+             return;
+         buckler_gyro_initialized = true;
+         
+         // initialize i2c master (two wire interface)
+         nrf_drv_twi_config_t i2c_config = NRF_DRV_TWI_DEFAULT_CONFIG;
+         i2c_config.scl = BUCKLER_SENSORS_SCL;
+         i2c_config.sda = BUCKLER_SENSORS_SDA;
+         i2c_config.frequency = NRF_TWIM_FREQ_100K;
+         error_code = nrf_twi_mngr_init(&twi_mngr_instance, &i2c_config);
+         APP_ERROR_CHECK(error_code);
+         
+         // init gyro sensor lib
+         lsm9ds1_init(&twi_mngr_instance);
+     =}
+ 
+     reaction(trigger) -> x, y, z {=
+         lsm9ds1_measurement_t angle = lsm9ds1_read_gyro_integration();
+         lf_set(x, angle.x_axis);
+         lf_set(y, angle.y_axis);
+         lf_set(z, angle.z_axis);
+     =}
+ 
+     initial mode IDLE {
+         reaction(trigger) -> reset(ACTIVE) {=
+             if (trigger->value) {
+                 lsm9ds1_start_gyro_integration();
+                 SET_MODE(ACTIVE);
+             }
+         =}
+     }
+ 
+     mode ACTIVE {
+         timer clck(0, 10 msec);
+         reaction(clck) {=
+             // performs the integration
+             // must be called periodically for accurate sum
+             lsm9ds1_read_gyro_integration();
+         =}
+         reaction(trigger) -> reset(IDLE) {=
+             if (!trigger->value) {
+                 SET_MODE(IDLE);
+                 lsm9ds1_stop_gyro_integration();
+             }
+         =}
+     }
+  }
