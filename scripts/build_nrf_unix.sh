@@ -54,6 +54,6 @@ cd $LF_SOURCE_GEN_DIRECTORY
 make flash
 
 echo ""
-echo "**** To flash the code onto the device:"
-echo "cd $LF_SOURCE_GEN_DIRECTORY; make flash"
+echo "**** To get printf outputs:"
+echo "cd $LF_SOURCE_GEN_DIRECTORY; make rtt"
 echo ""
