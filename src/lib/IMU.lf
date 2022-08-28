@@ -63,13 +63,13 @@ reactor IMU(row:int(0)) {
             // is risk of a call to lf_schedule() occurring in some other ISR.
             sd_nvic_critical_region_exit(&_lf_nested_region);
 
-            // lsm9ds1_measurement_t acc_measurement = lsm9ds1_read_accelerometer();
+            lsm9ds1_measurement_t acc_measurement = lsm9ds1_read_accelerometer();
             lsm9ds1_measurement_t gyr_measurement = lsm9ds1_read_gyro();
-            // lsm9ds1_measurement_t mag_measurement = lsm9ds1_read_magnetometer();
+            lsm9ds1_measurement_t mag_measurement = lsm9ds1_read_magnetometer();
             
-            // lf_set(acc, acc_measurement);
+            lf_set(acc, acc_measurement);
             lf_set(gyro, gyr_measurement);
-            // lf_set(mag, mag_measurement);
+            lf_set(mag, mag_measurement);
 
             // FIXME: Disable interrupts. Remove this. See FIXME above.
             sd_nvic_critical_region_enter(&_lf_nested_region);
