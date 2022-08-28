@@ -52,7 +52,7 @@ reactor IMU(row:int(0)) {
     =}
     reaction(trigger) -> acc, gyro, mag {=
         if (trigger->value) {
-        printf("hwllo?\n");
+            printf("FIXME: About to call lsm9ds1_read_gyro()\n");
             // lsm9ds1_measurement_t acc_measurement = lsm9ds1_read_accelerometer();
             lsm9ds1_measurement_t gyr_measurement = lsm9ds1_read_gyro();
             // lsm9ds1_measurement_t mag_measurement = lsm9ds1_read_magnetometer();
@@ -60,7 +60,7 @@ reactor IMU(row:int(0)) {
             // lf_set(acc, acc_measurement);
             lf_set(gyro, gyr_measurement);
             // lf_set(mag, mag_measurement);
-        printf("hello?\n");
+            printf("FIXME: Returned from lsm9ds1_read_gyro()\n");
         }
     =}
 }
