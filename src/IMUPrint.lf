@@ -1,0 +1,41 @@
+/** 
+ * Print the output of the IMU (inertial measurement unit) periodically.
+ */
+target C {
+    threading: false,
+    build: "../scripts/build_nrf_unix.sh",
+};
+import IMU from "lib/IMU.lf";
+
+reactor Printer {
+    input acc:lsm9ds1_measurement_t;
+    input gyro:lsm9ds1_measurement_t;
+    input mag:lsm9ds1_measurement_t;
+    
+    reaction(acc, gyro, mag) {=
+        printf("                          X-Axis\t    Y-Axis\t    Z-Axis\n");
+        printf("                      ----------\t----------\t----------\n");
+        if(acc->is_present) {
+            printf("Acceleration     (g): %10.3f\t%10.3f\t%10.3f\n", acc->value.x_axis, acc->value.y_axis, acc->value.z_axis);            
+        }
+        if (gyro->is_present) {
+            printf("Rotation (degrees/s): %10.3f\t%10.3f\t%10.3f\n", gyro->value.x_axis, gyro->value.y_axis, gyro->value.z_axis);
+        }
+        if (mag->is_present) {
+            printf("Magnetism       (uT): %10.3f\t%10.3f\t%10.3f\n", mag->value.x_axis, mag->value.y_axis, mag->value.z_axis);
+        }
+        printf("\n");        
+    =}
+}
+
+main reactor {
+    timer t(0, 100 msec);
+    imu = new IMU();
+    print = new Printer();
+    reaction(t) -> imu.trigger {=
+        lf_set(imu.trigger, true);
+    =}
+    imu.acc -> print.acc;
+    imu.gyro -> print.gyro;
+    imu.mag -> print.mag;
+}
