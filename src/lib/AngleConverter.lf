@@ -1,0 +1,62 @@
+/** 
+ * Convert a gyroscope reading in degrees per second into an
+ * angle measurement in degrees. For convenient use with the
+ * `lib/IMU.lf` reactor, the input and output datatypes are
+ * are a struct called `lsm9ds1_measurement_t` which has three
+ * fields, `x_axis`, `y_axis`, and `z_axis`, all of which are
+ * floats. This converter uses the trapezoidal method for
+ * numerical integration.
+ */
+target C {
+    timeout: 10 sec
+};
+
+preamble {=
+    #include "lsm9ds1.h"      // Defines lsm9ds1_measurement_t
+=}
+
+reactor AngleConverter {
+    input gyro:lsm9ds1_measurement_t;
+    output angle:lsm9ds1_measurement_t;
+    
+    state previous_angle_x:float(0);
+    state previous_angle_y:float(0);
+    state previous_angle_z:float(0);
+    state previous_velocity_x:float(0);
+    state previous_velocity_y:float(0);
+    state previous_velocity_z:float(0);
+    state previous_time:instant_t(0);
+    
+    reaction(gyro) -> angle {=
+        float x = gyro->value.x_axis;
+        float y = gyro->value.y_axis;
+        float z = gyro->value.z_axis;
+        
+        // Your code here to convert degrees per second to degrees.
+        instant_t current_time = lf_time_logical_elapsed();
+        interval_t elapsed_time = current_time - self->previous_time;
+        self->previous_time = current_time;
+        
+        float angle_x = self->previous_angle_x +
+                (x + self->previous_velocity_x) * (elapsed_time * 10e-9) / 2;
+        float angle_y = self->previous_angle_y +
+                (y + self->previous_velocity_y) * (elapsed_time * 10e-9) / 2;
+        float angle_z = self->previous_angle_z +
+                (z + self->previous_velocity_z) * (elapsed_time * 10e-9) / 2;
+                
+        self->previous_angle_x = angle_x;
+        self->previous_angle_y = angle_y;
+        self->previous_angle_z = angle_z;
+        
+        self->previous_velocity_x = x;
+        self->previous_velocity_y = y;
+        self->previous_velocity_z = z;
+        
+        struct lsm9ds1_measurement_t result = {
+            .x_axis = angle_x,
+            .y_axis = angle_y,
+            .z_axis = angle_z
+        };
+        lf_set(angle, result);
+    =}
+}
