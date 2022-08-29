@@ -14,13 +14,13 @@ reactor Printer {
     input mag:lsm9ds1_measurement_t;
     
     reaction(acc, gyro, mag) {=
-        printf("                          X-Axis\t    Y-Axis\t    Z-Axis\n");
-        printf("                      ----------\t----------\t----------\n");
+        printf("             n        X-Axis\t    Y-Axis\t    Z-Axis\n");
+        printf("                  ----------\t----------\t----------\n");
         if(acc->is_present) {
             printf("Acceleration (g): %10.3f\t%10.3f\t%10.3f\n", acc->value.x_axis, acc->value.y_axis, acc->value.z_axis);            
         }
         if (gyro->is_present) {
-            printf("Angle (degrees): %10.3f\t%10.3f\t%10.3f\n", gyro->value.x_axis, gyro->value.y_axis, gyro->value.z_axis);
+            printf("Angle  (degrees): %10.3f\t%10.3f\t%10.3f\n", gyro->value.x_axis, gyro->value.y_axis, gyro->value.z_axis);
         }
         if (mag->is_present) {
             printf("Magnetism   (uT): %10.3f\t%10.3f\t%10.3f\n", mag->value.x_axis, mag->value.y_axis, mag->value.z_axis);

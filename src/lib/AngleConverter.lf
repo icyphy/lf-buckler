@@ -32,17 +32,17 @@ reactor AngleConverter {
         float y = gyro->value.y_axis;
         float z = gyro->value.z_axis;
         
-        // Your code here to convert degrees per second to degrees.
+        // Convert degrees per second to degrees.
         instant_t current_time = lf_time_logical_elapsed();
         interval_t elapsed_time = current_time - self->previous_time;
         self->previous_time = current_time;
-        
+                
         float angle_x = self->previous_angle_x +
-                (x + self->previous_velocity_x) * (elapsed_time * 10e-9) / 2;
+                (x + self->previous_velocity_x) * (elapsed_time * 1e-9) / 2;
         float angle_y = self->previous_angle_y +
-                (y + self->previous_velocity_y) * (elapsed_time * 10e-9) / 2;
+                (y + self->previous_velocity_y) * (elapsed_time * 1e-9) / 2;
         float angle_z = self->previous_angle_z +
-                (z + self->previous_velocity_z) * (elapsed_time * 10e-9) / 2;
+                (z + self->previous_velocity_z) * (elapsed_time * 1e-9) / 2;
                 
         self->previous_angle_x = angle_x;
         self->previous_angle_y = angle_y;
@@ -52,11 +52,10 @@ reactor AngleConverter {
         self->previous_velocity_y = y;
         self->previous_velocity_z = z;
         
-        struct lsm9ds1_measurement_t result = {
-            .x_axis = angle_x,
-            .y_axis = angle_y,
-            .z_axis = angle_z
-        };
+        lsm9ds1_measurement_t result;
+        result.x_axis = angle_x;
+        result.y_axis = angle_y;
+        result.z_axis = angle_z;
         lf_set(angle, result);
     =}
 }

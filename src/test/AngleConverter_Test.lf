@@ -1,0 +1,38 @@
+/** 
+ * FIXME
+ */
+target C {
+    timeout: 1 sec,
+    files: ["lsm9ds1.h"]
+};
+import AngleConverter from "../lib/AngleConverter.lf";
+
+preamble {=
+    #include <math.h>
+=}
+
+main reactor {
+    timer t(0, 100 msec);
+    state count:int(0);
+    converter = new AngleConverter();
+    reaction(t) -> converter.gyro {=
+        float degrees_per_second = 1.0f;
+        lsm9ds1_measurement_t rotation;
+        rotation.x_axis = degrees_per_second;
+        rotation.y_axis = degrees_per_second;
+        rotation.z_axis = degrees_per_second;
+        lf_set(converter.gyro, rotation);
+    =}
+    reaction(converter.angle) {=
+        printf("Angles (degrees): %10.3f\t%10.3f\t%10.3f\n",
+            converter.angle->value.x_axis,
+            converter.angle->value.y_axis,
+            converter.angle->value.z_axis
+        );
+        // Allow for roundoff errors.
+        if (fabs(converter.angle->value.x_axis - self->count * 0.1) > 0.001) {
+            lf_print_error_and_exit("Expected %f", self->count * 0.1);
+        }
+        self->count++;
+    =}
+}

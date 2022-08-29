@@ -46,7 +46,7 @@ reactor IMU(row:int(0)) {
         nrf_drv_twi_config_t i2c_config = NRF_DRV_TWI_DEFAULT_CONFIG;
         i2c_config.scl = BUCKLER_SENSORS_SCL;
         i2c_config.sda = BUCKLER_SENSORS_SDA;
-        i2c_config.frequency = NRF_TWIM_FREQ_100K;
+        // i2c_config.frequency = NRF_TWIM_FREQ_100K; // Not needed. Same as default.
         error_code = nrf_twi_mngr_init(&twi_mngr_instance, &i2c_config);
         APP_ERROR_CHECK(error_code);
         
@@ -61,7 +61,7 @@ reactor IMU(row:int(0)) {
             // Until that fix is implemented, we have to enable interrupts here.
             // This is dangerous because while the interrupts are enabled, there
             // is risk of a call to lf_schedule() occurring in some other ISR.
-            sd_nvic_critical_region_exit(&_lf_nested_region);
+            sd_nvic_critical_region_exit(_lf_nested_region);
 
             lsm9ds1_measurement_t acc_measurement = lsm9ds1_read_accelerometer();
             lsm9ds1_measurement_t gyr_measurement = lsm9ds1_read_gyro();
