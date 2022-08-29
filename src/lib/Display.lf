@@ -14,7 +14,8 @@ preamble {=
     #include "nrfx_gpiote.h"
     #include "nrfx_spi.h"
     
-    #include "display.h"        // Defined Buckler display functions and constants.
+    #include "buckler.h"    // Defines BUCKLER_LCD_SCLK, etc.
+    #include "display.h"    // Defines Buckler display functions and constants.
           
     // Width of the display in characters.
     #define BUCKLER_DISPLAY_WIDTH 16
@@ -30,6 +31,9 @@ preamble {=
     // Flag indicating that SPI has been initialized.
     // This is needed so that there can be multiple instances of this reactor.
     bool buckler_spi_initialized = false;
+
+    // FIXME: This should not be needed!  See FIXME below.
+    extern uint8_t _lf_nested_region;
 =}
 
 /**
@@ -69,7 +73,19 @@ reactor Display(row:int(0)) {
     reaction(message) {=
         // Copy the message to the global buffer, truncating it at the display width.
         snprintf(buckler_message[self->row], BUCKLER_DISPLAY_WIDTH + 1, "%s", message->value);
+
+        // FIXME: Currently, the platform file lf_nrf52_support.c disables
+        // interrupts except during nanosleep(). This needs to replaced with
+        // a basic implementation of mutexes in the unthreaded C runtime.
+        // Until that fix is implemented, we have to enable interrupts here.
+        // This is dangerous because while the interrupts are enabled, there
+        // is risk of a call to lf_schedule() occurring in some other ISR.
+        sd_nvic_critical_region_exit(_lf_nested_region);
+
         ret_code_t error_code = display_write(buckler_message[self->row], self->row);
         APP_ERROR_CHECK(error_code);
+
+        // FIXME: Disable interrupts. Remove this. See FIXME above.
+        sd_nvic_critical_region_enter(&_lf_nested_region);
     =}
 }
