@@ -35,9 +35,6 @@ preamble {=
     
     // Global variable to prevent initializing more than once.
     bool buckler_accelerometer_initialized = false;
-
-    // FIXME: This should not be needed!  See FIXME below.
-    extern uint8_t _lf_nested_region;
 =}
 
 /**
@@ -83,22 +80,10 @@ reactor Accelerometer(row:int(0)) {
     =}
     reaction(trigger) -> x, y, z {=
         if (trigger->value) {
-
-            // FIXME: Currently, the platform file lf_nrf52_support.c disables
-            // interrupts except during nanosleep(). This needs to replaced with
-            // a basic implementation of mutexes in the unthreaded C runtime.
-            // Until that fix is implemented, we have to enable interrupts here.
-            // This is dangerous because while the interrupts are enabled, there
-            // is risk of a call to lf_schedule() occurring in some other ISR.
-            sd_nvic_critical_region_exit(_lf_nested_region);
-
             // Sample analog inputs.
             lf_set(x, sample_value(X_CHANNEL));
             lf_set(y, sample_value(Y_CHANNEL));
             lf_set(z, sample_value(Z_CHANNEL));
-
-            // FIXME: Disable interrupts. Remove this. See FIXME above.
-            sd_nvic_critical_region_enter(&_lf_nested_region);
         }
     =}
 }

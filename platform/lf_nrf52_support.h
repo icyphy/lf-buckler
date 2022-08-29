@@ -46,6 +46,13 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #endif
 
+#include "core/utils/util.h"  // For ATTRIBUTE_FORMAT_PRINTF
+/**
+ * @brief Version of printf that disables interrupts.
+ * 
+ */
+void guarded_printf(const char *fmt, ...) ATTRIBUTE_FORMAT_PRINTF(1, 2);
+
 /**
  * For the nrf52, each mutex will control an interrupt.
  *
