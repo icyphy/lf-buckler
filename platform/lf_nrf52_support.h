@@ -37,6 +37,10 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <time.h>   // For CLOCK_MONOTONIC
 #include <stdbool.h>
 
+#include "nrf_delay.h"
+
+// Hack to introduce delay before printf.
+#define printf(...) nrf_delay_ms(100); printf(__VA_ARGS__)
 
 #ifdef NUMBER_OF_WORKERS
 
