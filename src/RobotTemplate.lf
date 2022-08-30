@@ -1,5 +1,8 @@
 /**
  * Template for robot driving lab exercises.
+ * This template just periodically switches between a
+ * STOPPED and a DRIVING mode, updating the LCD display
+ * on each change of mode.
  */
 target C {
     threading: false,
@@ -9,31 +12,22 @@ target C {
 import Display from "lib/Display.lf";
 
 reactor Robot {
-    input drive:bool;
-    output current_mode:string;
+    input drive:bool;       // Toggle mode.
+    output notify:string;   // Notify of mode change.
 
     initial mode STOPPED {
-        reaction(reset) -> current_mode {=
-            lf_set(current_mode, "STOPPED");
-        =}
-        reaction(drive) -> DRIVING {=
-            if (drive->value) {
-                lf_set_mode(DRIVING);
-            }
+        reaction(drive) -> DRIVING, notify {=
+            lf_set_mode(DRIVING);
+            lf_set(notify, "DRIVING");
         =}
     }
 
     mode DRIVING {
-        reaction(reset) -> current_mode {=
-            lf_set(current_mode, "DRIVING");
-        =}
-        reaction(drive) -> STOPPED {=
-            if (!drive->value) {
-                lf_set_mode(STOPPED);
-            }
+        reaction(drive) -> STOPPED, notify {=
+            lf_set_mode(STOPPED);
+            lf_set(notify, "STOPPED");
         =}
     }
-  
 }
 
 main reactor {
@@ -46,5 +40,5 @@ main reactor {
         // Toggle the drive state variable for next time.
         self->drive = !self->drive;
     =}
-    robot.current_mode -> display.message;
+    robot.notify -> display.message;
 }
