@@ -18,6 +18,6 @@ main reactor {
     =}
     reaction(a.x, a.y, a.z) {=
         // Print results.
-        guarded_printf("x: %d\ty: %d\tz:%d\n", a.x->value, a.y->value, a.z->value);
+        printf("x: %d\ty: %d\tz:%d\n", a.x->value, a.y->value, a.z->value);
     =}
 }
