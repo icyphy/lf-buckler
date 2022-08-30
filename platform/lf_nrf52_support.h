@@ -39,7 +39,10 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nrf_delay.h"
 
-// Hack to introduce delay before printf.
+// FIXME: Hack to introduce delay before printf.
+// Failing to do this results in printf often deadlocking and never returning.
+// This seems to reliably triggerable by calling printf again shortly after
+// having just called it.
 #define printf(...) nrf_delay_ms(100); printf(__VA_ARGS__)
 
 #ifdef NUMBER_OF_WORKERS
