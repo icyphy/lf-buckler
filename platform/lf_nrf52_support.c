@@ -50,18 +50,6 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdarg.h>
 #include <stdio.h>
 
-void guarded_printf(const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    // Disable interrupts.
-    uint8_t region = 0;
-    sd_nvic_critical_region_enter(&region);
-    vprintf(fmt, args);
-    // Reenable interrupts if they were enabled.
-    sd_nvic_critical_region_exit(region);
-    va_end(args);
-}
-
 /**
  * lf global timer instance
  * timerId = 3 TIMER3
