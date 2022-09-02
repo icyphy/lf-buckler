@@ -1,0 +1,83 @@
+/**
+ * Reactor that periodically outputs an estimate of the angle of the Buckler board
+ * relative to its starting angle based on the gyroscope readings in
+ * the inertial measurement unit (IMU).  Use this instead of IMU.lf
+ * if you need only the gyro data and you want it integrated.
+ * The first output occurs after one period, and then periodically thereafter
+ * with the period given by the parameter.
+ * This reactor is based on the sample code in buckler/software/apps/i2c_imu.
+ * 
+ * @author Edward A. Lee
+ */
+target C;
+
+preamble {=
+    #include "buckler.h"      // Defines ret_code_t, BUCKLER_SENSORS_SCL, BUCKLER_SENSORS_SDA
+    #include "nrf_twi_mngr.h" // Defines NRF_DRV_TWI_DEFAULT_CONFIG, NRF_TWIM_FREQ_100K
+    #include "lsm9ds1.h"      // Defines lsm9ds1_measurement_t, lsm9ds1_init, etc.
+    
+    // Global variable to prevent initializing the i2c bus more than once.
+    bool i2c_initialized = false;
+    
+    // Use a library macro to define and initialize a static variable twi_mngr_instance
+    // with a queue size of 5 and index 0.
+    NRF_TWI_MNGR_DEF(twi_mngr_instance, 5, 0);
+=}
+
+/**
+ * Reactor that periodically outputs an integral estimate of gyroscope
+ * readings from the IMU (inertial measurement unit)
+ * on the Buckler board, which is an LSM9DS1 from ST Microelectronics.
+ * The datasheet is here:
+ * 
+ *     https://www.st.com/content/ccc/resource/technical/document/datasheet/1e/3f/2a/d6/25/eb/48/46/DM00103319.pdf/files/DM00103319.pdf/jcr:content/translations/en.DM00103319.pdf
+ */
+reactor GyroAngle(period:time(100 msec)) {
+    timer trigger(period, period);
+    output x:float;
+    output y:float;
+    output z:float;
+
+    reset state previous_angle_x:float(0);
+    reset state previous_angle_y:float(0);
+    reset state previous_angle_z:float(0);
+    reset state previous_velocity_x:float(0);
+    reset state previous_velocity_y:float(0);
+    reset state previous_velocity_z:float(0);
+    
+    reaction(startup) {=
+        ret_code_t error_code = NRF_SUCCESS;
+
+        if (i2c_initialized) return;
+        i2c_initialized = true;
+        
+        // Initialize I2C bus master (also called TWI, two wire interface)/
+        nrf_drv_twi_config_t i2c_config = NRF_DRV_TWI_DEFAULT_CONFIG;
+        i2c_config.scl = BUCKLER_SENSORS_SCL;
+        i2c_config.sda = BUCKLER_SENSORS_SDA;
+        // i2c_config.frequency = NRF_TWIM_FREQ_100K; // Not needed. Same as default.
+        error_code = nrf_twi_mngr_init(&twi_mngr_instance, &i2c_config);
+        APP_ERROR_CHECK(error_code);
+        
+        // initialize LSM9DS1 driver
+        lsm9ds1_init(&twi_mngr_instance);
+    =}
+    reaction(trigger) -> x, y, z {=
+        lsm9ds1_measurement_t g = lsm9ds1_read_gyro();
+
+        self->previous_angle_x +=
+                (g.x_axis + self->previous_velocity_x) * (self->period * 1e-9) / 2;
+        self->previous_angle_y +=
+                (g.y_axis + self->previous_velocity_y) * (self->period * 1e-9) / 2;
+        self->previous_angle_z +=
+                (g.z_axis + self->previous_velocity_z) * (self->period * 1e-9) / 2;
+        
+        self->previous_velocity_x = g.x_axis;
+        self->previous_velocity_y = g.y_axis;
+        self->previous_velocity_z = g.z_axis;
+
+        lf_set(x, self->previous_angle_x);
+        lf_set(y, self->previous_angle_y);
+        lf_set(z, self->previous_angle_z);
+    =}
+}
