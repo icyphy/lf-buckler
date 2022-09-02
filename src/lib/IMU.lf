@@ -27,7 +27,7 @@ preamble {=
  * 
  *     https://www.st.com/content/ccc/resource/technical/document/datasheet/1e/3f/2a/d6/25/eb/48/46/DM00103319.pdf/files/DM00103319.pdf/jcr:content/translations/en.DM00103319.pdf
  */
-reactor IMU(row:int(0)) {
+reactor IMU {
     input trigger:bool;
     output acc:lsm9ds1_measurement_t;
     output gyro:lsm9ds1_measurement_t;
