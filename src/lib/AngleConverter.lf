@@ -19,13 +19,13 @@ reactor AngleConverter {
     input gyro:lsm9ds1_measurement_t;
     output angle:lsm9ds1_measurement_t;
     
-    state previous_angle_x:float(0);
-    state previous_angle_y:float(0);
-    state previous_angle_z:float(0);
-    state previous_velocity_x:float(0);
-    state previous_velocity_y:float(0);
-    state previous_velocity_z:float(0);
-    state previous_time:instant_t(0);
+    reset state previous_angle_x:float(0);
+    reset state previous_angle_y:float(0);
+    reset state previous_angle_z:float(0);
+    reset state previous_velocity_x:float(0);
+    reset state previous_velocity_y:float(0);
+    reset state previous_velocity_z:float(0);
+    reset state previous_time:instant_t(-1);
     
     reaction(gyro) -> angle {=
         float x = gyro->value.x_axis;
@@ -34,28 +34,27 @@ reactor AngleConverter {
         
         // Convert degrees per second to degrees.
         instant_t current_time = lf_time_logical_elapsed();
-        interval_t elapsed_time = current_time - self->previous_time;
+        interval_t elapsed_time = 0;
+        if (self->previous_time >= 0) {
+            elapsed_time = current_time - self->previous_time;
+        }
         self->previous_time = current_time;
                 
-        float angle_x = self->previous_angle_x +
+        self->previous_angle_x +=
                 (x + self->previous_velocity_x) * (elapsed_time * 1e-9) / 2;
-        float angle_y = self->previous_angle_y +
+        self->previous_angle_y +=
                 (y + self->previous_velocity_y) * (elapsed_time * 1e-9) / 2;
-        float angle_z = self->previous_angle_z +
+        self->previous_angle_z +=
                 (z + self->previous_velocity_z) * (elapsed_time * 1e-9) / 2;
-                
-        self->previous_angle_x = angle_x;
-        self->previous_angle_y = angle_y;
-        self->previous_angle_z = angle_z;
         
         self->previous_velocity_x = x;
         self->previous_velocity_y = y;
         self->previous_velocity_z = z;
         
         lsm9ds1_measurement_t result;
-        result.x_axis = angle_x;
-        result.y_axis = angle_y;
-        result.z_axis = angle_z;
+        result.x_axis = self->previous_angle_x;
+        result.y_axis = self->previous_angle_y;
+        result.z_axis = self->previous_angle_y;
         lf_set(angle, result);
     =}
 }
