@@ -7,6 +7,7 @@ target C {
 };
 import IMU from "lib/IMU.lf";
 import AngleConverter from "lib/AngleConverter.lf";
+import Display from "lib/Display.lf";
 
 reactor Printer {
     input acc:lsm9ds1_measurement_t;
@@ -34,8 +35,22 @@ main reactor {
     imu = new IMU();
     print = new Printer();
     convert = new AngleConverter();
+    dx = new Display(row = 0);
+    dy = new Display(row = 1);
     reaction(t) -> imu.trigger {=
         lf_set(imu.trigger, true);
+    =}
+    reaction(convert.angle) -> dx.message, dy.message {=
+        static char x[BUCKLER_DISPLAY_WIDTH + 1];
+        snprintf(x, BUCKLER_DISPLAY_WIDTH + 1, "x:%4.0f z:%4.0f",
+            convert.angle->value.x_axis, convert.angle->value.z_axis
+        );
+        lf_set(dx.message, x);
+        static char y[BUCKLER_DISPLAY_WIDTH + 1];
+        snprintf(y, BUCKLER_DISPLAY_WIDTH + 1, "y:%4.0f",
+            convert.angle->value.y_axis
+        );
+        lf_set(dy.message, y);
     =}
     imu.acc -> print.acc;
     imu.gyro -> convert.gyro;
