@@ -62,9 +62,7 @@ static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
  */
 bool _lf_timer_interrupted = false;
 bool _lf_overflow_corrected = false;
-
-// FIXME: Remove this. See other FIXMEs associated with it.
-// uint8_t _lf_nested_region = 0;
+uint8_t _lf_nested_region = 0;
 
 /**
  * Offset to _LF_CLOCK that would convert it
@@ -171,14 +169,7 @@ void lf_initialize_clock() {
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, ~0x0, true);
     nrfx_timer_enable(&g_lf_timer_inst);
 
-    // FIXME: The following call disables interrupts.
-    // However, this causes any blocking I/O function, where a sensor is read
-    // or an actuator driven by code that waits until the I/O operation completes,
-    // to deadlock.  Most of the I/O in the labs is based on such blocking calls.
-    // As a consequence, any asynchronous call to lf_schedule() runs the risk
-    // of corrupting the event queue!  This is not safe.
-    // The solution is to fix the unthreaded C runtime to use mutexes.
-    // sd_nvic_critical_region_enter(&_lf_nested_region);
+    sd_nvic_critical_region_enter(&_lf_nested_region);
 }
 
 /**
@@ -236,14 +227,12 @@ int lf_nanosleep(instant_t requested_time) {
     // init timer interrupt for sleep time
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
     
-    // FIXME: Remove this. See other FIXMEs associated with it.
     // enable nvic
-    // sd_nvic_critical_region_exit(_lf_nested_region);
+    sd_nvic_critical_region_exit(_lf_nested_region);
     // wait for interrupt
     sd_app_evt_wait();
-    // FIXME: Remove this. See other FIXMEs associated with it.
     // disable nvic
-    // sd_nvic_critical_region_enter(&_lf_nested_region);
+    sd_nvic_critical_region_enter(&_lf_nested_region);
     
     int result = (_lf_timer_interrupted) ? 0 : -1;
     // Check whether timer interrupted and return -1 on nont timer interrupt.
