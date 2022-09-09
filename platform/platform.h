@@ -55,31 +55,37 @@ typedef _interval_t interval_t;
  */
 typedef _microstep_t microstep_t;
 
-// Define mutex functions even though the runtime is unthreaded because they are
-// needed to support interrupts.
+/**
+ * Enter a critical section where logical time and the event queue are guaranteed
+ * to not change unless they are changed within the critical section.
+ * In platforms with threading support, this normally will be implemented
+ * by acquiring a mutex lock. In platforms without threading support,
+ * this can be implemented by disabling interrupts.
+ * Users of this function must ensure that lf_init_critical_sections() is
+ * called first and that lf_critical_section_exit() is called later.
+ * @return 0 on success, platform-specific error number otherwise.
+ */
+extern int lf_critical_section_enter();
 
 /**
- * Initialize a mutex.
- * 
+ * Exit the critical section entered with lf_lock_time().
  * @return 0 on success, platform-specific error number otherwise.
  */
-extern int lf_mutex_init(lf_mutex_t* mutex);
+extern int lf_critical_section_exit();
 
 /**
- * Lock a mutex.
- * 
+ * Notify any listeners that an event has been created.
+ * The caller should call lf_critical_section_enter() before calling this function.
  * @return 0 on success, platform-specific error number otherwise.
  */
-extern int lf_mutex_lock(lf_mutex_t* mutex);
+extern int lf_notify_of_event();
 
-/** 
- * Unlock a mutex.
- * 
+/**
+ * Acknowledge any event notifications that may have occurred.
+ * To be called only from within the critical section.
  * @return 0 on success, platform-specific error number otherwise.
  */
-extern int lf_mutex_unlock(lf_mutex_t* mutex);
-
-
+extern int lf_ack_events();
 #ifdef NUMBER_OF_WORKERS
 
 /**
@@ -214,7 +220,7 @@ extern int lf_clock_gettime(instant_t* t);
  * 
  * @return 0 for success, or -1 for failure.
  */
-extern int lf_nanosleep(instant_t requested_time);
+extern int lf_sleep(interval_t requested_time);
 
 
 /**

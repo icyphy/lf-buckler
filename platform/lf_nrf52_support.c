@@ -47,6 +47,10 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifdef NUMBER_OF_WORKERS
 #endif
 
+/**
+ * Keep track of interrupts being raised.
+ */
+volatile bool _lf_timer_interrupted = false;
 
 /**
  * lf global timer instance
@@ -55,11 +59,11 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
 
 /**
- * Keep track of interrupts being raised.
- * Allow sleep to exit with nonzero return on interrupt.
+ * Flag to be raised when overflow occurs and is corrected.
  */
-bool _lf_timer_interrupted = false;
 bool _lf_overflow_corrected = false;
+
+// FIXME: what is this for?
 uint8_t _lf_nested_region = 0;
 
 /**
@@ -112,7 +116,7 @@ uint32_t _lf_previous_timer_time = 0u;
 /**
  * Handles LF timer interrupts
  * Using lf_timer instance -> id = 3
- * channel2 -> channel for lf_nanosleep interrupt
+ * channel2 -> channel for lf_sleep interrupt
  * channel3 -> channel for overflow interrupt
  *
  * [in] event_type
@@ -167,7 +171,6 @@ void lf_initialize_clock() {
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, ~0x0, true);
     nrfx_timer_enable(&g_lf_timer_inst);
 
-    sd_nvic_critical_region_enter(&_lf_nested_region);
 }
 
 /**
@@ -211,29 +214,44 @@ int lf_clock_gettime(instant_t* t) {
  *
  * @return 0 for success, or -1 if interrupted.
  */
-int lf_nanosleep(instant_t requested_time) {
-    uint32_t target_timer_val;
+int lf_sleep(interval_t sleep_duration) {
     instant_t target_time;
 
     lf_clock_gettime(&target_time);
-    target_time += requested_time;
-    target_timer_val = (requested_time - _lf_time_epoch_offset) / 1000;
+    target_time += sleep_duration;
+    uint32_t target_timer_val = (uint32_t)(target_time / 1000);
 
-    // timer interrupt flag default false
-    // callback fires and asserts bool
-    _lf_timer_interrupted = false;
     // init timer interrupt for sleep time
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
-    
-    // enable nvic
-    sd_nvic_critical_region_exit(_lf_nested_region);
+    printf("Going to sleep for %"PRIu32" ms\n", target_timer_val);
     // wait for interrupt
     sd_app_evt_wait();
+    
+    // Report whether sleep completed or was interrupted
+    // by an asynchronously scheduled event. If such
+    // interruption occurred, the event queue will be
+    // checked again.
+    return (_lf_timer_interrupted) ? 0 : -1;
+}
+
+int lf_critical_section_enter() {
     // disable nvic
     sd_nvic_critical_region_enter(&_lf_nested_region);
-    
-    int result = (_lf_timer_interrupted) ? 0 : -1;
-    // Check whether timer interrupted and return -1 on nont timer interrupt.
-    // This will force the event queue to be checked again.
-    return result;
+    return 0;
+}
+
+int lf_critical_section_exit() {
+    // enable nvic
+    sd_nvic_critical_region_exit(_lf_nested_region);
+    return 0;
+}
+
+int lf_notify_of_event() {
+   _lf_timer_interrupted = true;
+   return 0;
+}
+
+int lf_ack_events() {
+    _lf_timer_interrupted = false;
+    return 0;
 }
