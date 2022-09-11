@@ -24,6 +24,7 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /**
  * @brief NRF52 support for the C target of Lingua Franca.
+ *
  * @author{Soroush Bateni <soroush@utdallas.edu>}
  * @author{Abhi Gundrala <gundralaa@berkeley.edu>}
  * @author{Erling Jellum} <erling.r.jellum@ntnu.no>}
@@ -33,6 +34,8 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdlib.h> // Defines malloc.
 #include <string.h> // Defines memcpy.
 #include <assert.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 #include "lf_nrf52_support.h"
 #include "../platform.h"
@@ -59,7 +62,9 @@ static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
  */
 bool _lf_overflow_corrected = false;
 
-// FIXME: what is this for?
+/**
+ * Flag passed to sd_nvic_critical_region_*
+ */
 uint8_t _lf_nested_region = 0;
 
 /**
@@ -161,7 +166,6 @@ void lf_initialize_clock() {
     // Enable an interrupt to occur on channel NRF_TIMER_CC_CHANNEL3
     // when the timer reaches its maximum value and is about to overflow.
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, ~0x0, true);
-
     nrfx_timer_enable(&g_lf_timer_inst);
 }
 

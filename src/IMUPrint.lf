@@ -30,7 +30,7 @@ reactor Printer {
 }
 
 main reactor {
-    timer t(0, 100 msec);
+    timer t(0, 500 msec);
     imu = new IMU();
     print = new Printer();
     convert = new AngleConverter();

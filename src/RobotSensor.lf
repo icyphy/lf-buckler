@@ -1,0 +1,51 @@
+target C {
+    threading: false,
+    build: "../scripts/build_nrf_unix.sh"   
+};
+
+preamble {=
+    #include "kobukiSensorPoll.h"
+=}
+
+main reactor {
+    timer t(1 sec, 500 msec);
+    reaction(t) {=
+        KobukiSensors_t sensor_cache;
+        kobukiSensorPoll(&sensor_cache);
+        // print results
+        printf("\n");
+        printf("### Kobuki Sensor Values ###\n");
+        printf("Wheel drop left:\t%d\n", sensor_cache.bumps_wheelDrops.wheeldropLeft);
+        printf("Wheel drop right:\t%d\n", sensor_cache.bumps_wheelDrops.wheeldropRight);
+        printf("\n");
+        printf("Bump left:\t%d\n", sensor_cache.bumps_wheelDrops.bumpLeft);
+        printf("Bump center:\t%d\n", sensor_cache.bumps_wheelDrops.bumpCenter);
+        printf("Bump right:\t%d\n", sensor_cache.bumps_wheelDrops.bumpRight);
+        printf("\n");
+        printf("Cliff left:\t%d\n", sensor_cache.cliffLeft);
+        printf("Cliff center:\t%d\n", sensor_cache.cliffCenter);
+        printf("Cliff right:\t%d\n", sensor_cache.cliffRight);
+        printf("\n");
+        printf("Button 0:\t%d\n", sensor_cache.buttons.B0);
+        printf("Button 1:\t%d\n", sensor_cache.buttons.B1);
+        printf("Button 2:\t%d\n", sensor_cache.buttons.B2);
+        printf("\n");
+        printf("Encoder left:\t%d\n", sensor_cache.leftWheelEncoder);
+        printf("Encoder right\t%d\n", sensor_cache.rightWheelEncoder);
+        printf("\n");
+        printf("Current left:\t%d\n", sensor_cache.leftWheelCurrent);
+        printf("Current right\t%d\n", sensor_cache.rightWheelCurrent);
+        printf("\n");
+        printf("PWM left:\t%d\n", sensor_cache.leftWheelPWM);
+        printf("PWM right\t%d\n", sensor_cache.rightWheelPWM);
+        printf("\n");
+        printf("Over current left:\t%d\n", sensor_cache.leftWheelOverCurrent);
+        printf("Over current right\t%d\n", sensor_cache.rightWheelOverCurrent);
+        printf("\n");
+        printf("Battery voltage:\t%d\n", sensor_cache.batteryVoltage);
+        printf("Charging state:\t%d\n", sensor_cache.chargingState);
+        printf("\n");
+        printf("Angle:\t%d\n", sensor_cache.angle);
+        printf("Rate:\t%d\n", sensor_cache.angleRate);
+    =}
+}

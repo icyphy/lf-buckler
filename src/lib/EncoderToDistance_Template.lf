@@ -1,0 +1,19 @@
+/**
+ * Encoder to distance template for section 7.2.3.
+ */
+target C;
+
+reactor EncoderToDistance(
+    ticks_to_meters:float(0.0006108),
+    init_encoder:uint16_t(0)
+) {
+    input encoder:uint16_t;   // Ticks.
+    output distance:float;    // Meters.
+    
+    state previous_encoder:uint16_t(init_encoder);
+    state previous_distance:float(0);
+    
+    reaction (encoder) -> distance {=
+        // Your code goes here.
+    =}
+}
