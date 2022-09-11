@@ -24,12 +24,12 @@ STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ***************/
 
-/** NRF52 support for the C target of Lingua Franca.
- *  Interrupt only support, does not implement multi-threading
- *  or realtime clock support.
- *
- *  @author{Soroush Bateni <soroush@utdallas.edu>}
- *  @author{Abhi Gundrala <gundralaa@berkeley.edu>}
+/**
+ * @brief NRF52 support for the C target of Lingua Franca.
+ * @author{Soroush Bateni <soroush@utdallas.edu>}
+ * @author{Abhi Gundrala <gundralaa@berkeley.edu>}
+ * @author{Erling Jellum} <erling.r.jellum@ntnu.no>}
+ * @author{Marten Lohstroh <marten@berkeley.edu>}
  */
 
 #include <stdlib.h> // Defines malloc.
@@ -48,9 +48,9 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 /**
- * Keep track of interrupts being raised.
+ * True when the last requested sleep has been completed, false otherwise.
  */
-volatile bool _lf_timer_interrupted = false;
+volatile bool _lf_sleep_completed = false;
 
 /**
  * lf global timer instance
@@ -127,18 +127,14 @@ uint32_t _lf_previous_timer_time = 0u;
  */
 void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
     
-    // check if event triggered on channel 2
-    // sleep handle
     if (event_type == NRF_TIMER_EVENT_COMPARE2) {
-        _lf_timer_interrupted = true;
-    }
-
-    // check if event triggered on channel 3
-    // overflow handle
-    if (event_type == NRF_TIMER_EVENT_COMPARE3) {
+        _lf_sleep_completed = true;
+    } else if (event_type == NRF_TIMER_EVENT_COMPARE3) {
         if (!_lf_overflow_corrected) {
             _lf_time_epoch_offset += (1LL << 32) * 1000;
         }
+    } else {
+        printf("Some unexpected event happened: %d", event_type);
     }
     _lf_overflow_corrected = false;
 }
@@ -169,8 +165,8 @@ void lf_initialize_clock() {
     // Enable an interrupt to occur on channel NRF_TIMER_CC_CHANNEL3
     // when the timer reaches its maximum value and is about to overflow.
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, ~0x0, true);
-    nrfx_timer_enable(&g_lf_timer_inst);
 
+    nrfx_timer_enable(&g_lf_timer_inst);
 }
 
 /**
@@ -217,21 +213,47 @@ int lf_clock_gettime(instant_t* t) {
 int lf_sleep(interval_t sleep_duration) {
     instant_t target_time;
 
+    // This is a temporary fix.
+    // What really should be done:
+    // - compute target time
+    // - disable interrupts
+    // - read current time
+    // - compute shortest distance between target time and current time 
+    // - shortest distance should be positive and at least 2 ticks(us)
+    if (sleep_duration < USEC(5)) {
+        return -1;
+    }
+
     lf_clock_gettime(&target_time);
     target_time += sleep_duration;
-    uint32_t target_timer_val = (uint32_t)(target_time / 1000);
+    printf("Going to sleep for %"PRId64" ns\n", sleep_duration);
 
+    // FIXME: race condition: an interrupt could have happened before reaching here
+    // This can be avoided by entering the critical section before peeking and staying
+    // in the critical section until waiting for the exception. We should probably
+    // re-enter before returning.
+    _lf_sleep_completed = false; 
+
+    uint32_t target_timer_val = (uint32_t)(target_time / 1000);
+    uint32_t curr_timer_time = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
+
+    printf("Entering suspend wait until t+%"PRIu32" us (curr timer time: %"PRIu32")\n", target_timer_val, curr_timer_time);
+    
     // init timer interrupt for sleep time
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
-    printf("Going to sleep for %"PRIu32" ms\n", target_timer_val);
-    // wait for interrupt
-    sd_app_evt_wait();
     
-    // Report whether sleep completed or was interrupted
-    // by an asynchronously scheduled event. If such
-    // interruption occurred, the event queue will be
-    // checked again.
-    return (_lf_timer_interrupted) ? 0 : -1;
+    // wait for exception
+    __WFE();
+    
+    // disable interrupt in case it is still pending
+    nrfx_timer_compare_int_disable(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
+
+    if (_lf_sleep_completed) {
+        return 0;
+    } else {
+        // printf("Sleep got interrupted...\n");
+        return -1;
+    }
 }
 
 int lf_critical_section_enter() {
@@ -247,11 +269,5 @@ int lf_critical_section_exit() {
 }
 
 int lf_notify_of_event() {
-   _lf_timer_interrupted = true;
    return 0;
-}
-
-int lf_ack_events() {
-    _lf_timer_interrupted = false;
-    return 0;
 }

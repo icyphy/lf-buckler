@@ -80,12 +80,6 @@ extern int lf_critical_section_exit();
  */
 extern int lf_notify_of_event();
 
-/**
- * Acknowledge any event notifications that may have occurred.
- * To be called only from within the critical section.
- * @return 0 on success, platform-specific error number otherwise.
- */
-extern int lf_ack_events();
 #ifdef NUMBER_OF_WORKERS
 
 /**
