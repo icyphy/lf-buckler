@@ -44,22 +44,37 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nrf_soc.h"
 #include "app_error.h"
 
+    #include "nrf_gpio.h"   
+
 #ifdef NUMBER_OF_WORKERS
 #endif
 
+    #define PIN1 NRF_GPIO_PIN_MAP(0,27)
+    #define PIN2 NRF_GPIO_PIN_MAP(0, 26)
+   #define PIN3 NRF_GPIO_PIN_MAP(0, 25)
+   #define PIN4 NRF_GPIO_PIN_MAP(0, 24)
 
+    #define LED0 NRF_GPIO_PIN_MAP(0,17)
+    #define LED1 NRF_GPIO_PIN_MAP(0,18)
+    #define LED3 NRF_GPIO_PIN_MAP(0, 20)
 /**
  * lf global timer instance
  * timerId = 3 TIMER3
  */
-static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
+#define LF_TIMER_ID 3
+static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(LF_TIMER_ID);
+
+#define COMBINE_HI_LO(hi,lo) ((((uint64_t) hi) << 32) | ((uint64_t) lo))
+#define MAX_SLEEP_NS 1000ULL*UINT32_MAX
+
+/**
+ * 
 
 /**
  * Keep track of interrupts being raised.
  * Allow sleep to exit with nonzero return on interrupt.
  */
 bool _lf_timer_interrupted = false;
-bool _lf_overflow_corrected = false;
 uint8_t _lf_nested_region = 0;
 
 /**
@@ -69,8 +84,7 @@ uint8_t _lf_nested_region = 0;
  * For CLOCK_MONOTONIC, it is the difference between those
  * clocks at the start of the execution.
  */
-interval_t _lf_time_epoch_offset = 0LL;
-
+uint32_t _lf_time_us_high = 0;
 /**
  * Convert a _lf_time_spec_t ('tp') to an instant_t representation in
  * nanoseconds.
@@ -94,20 +108,6 @@ struct timespec convert_ns_to_timespec(instant_t t) {
     return tp;
 }
 
-/**
- * Calculate the necessary offset to bring _LF_CLOCK in parity with the epoch
- * time reported by CLOCK_REALTIME.
- */
-void calculate_epoch_offset() {
-    // unimplemented - on the nrf, probably not possible to get a bearing on real time.
-    _lf_time_epoch_offset = 0LL;
-}
-
-/**
- * To handle overflow of a 32-bit timer with microsecond resolution,
- * record the previous query to the timer here.
- */
-uint32_t _lf_previous_timer_time = 0u;
 
 /**
  * Handles LF timer interrupts
@@ -121,10 +121,12 @@ uint32_t _lf_previous_timer_time = 0u;
  *      context passed to handler
  * 
  */
+ 
 void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
+        nrf_gpio_pin_set(PIN3);
     
-    // check if event triggered on channel 2
-    // sleep handle
+    
+    // Channel 2 = Timeout on sleep timer
     if (event_type == NRF_TIMER_EVENT_COMPARE2) {
         _lf_timer_interrupted = true;
     }
@@ -132,19 +134,20 @@ void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
     // check if event triggered on channel 3
     // overflow handle
     if (event_type == NRF_TIMER_EVENT_COMPARE3) {
-        if (!_lf_overflow_corrected) {
-            _lf_time_epoch_offset += (1LL << 32) * 1000;
-        }
+        _lf_time_us_high += 1;
     }
-    _lf_overflow_corrected = false;
+    nrf_gpio_pin_clear(PIN3);
 }
 
 /**
  * Initialize the LF clock.
  */
 void lf_initialize_clock() {
-    _lf_time_epoch_offset = 0LL;
-    _lf_previous_timer_time = 0u;
+
+    nrf_gpio_cfg_output(PIN1);
+    nrf_gpio_cfg_output(PIN2);
+    nrf_gpio_cfg_output(PIN3);
+    nrf_gpio_cfg_output(PIN4);
 
     // Initialize TIMER3 as a free running timer
     // 1) Set to be a 32 bit timer
@@ -166,23 +169,13 @@ void lf_initialize_clock() {
     // when the timer reaches its maximum value and is about to overflow.
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, ~0x0, true);
     nrfx_timer_enable(&g_lf_timer_inst);
-
-    sd_nvic_critical_region_enter(&_lf_nested_region);
 }
 
 /**
  * Fetch the value of _LF_CLOCK (see lf_linux_support.h) and store it in tp. The
  * timestamp value in 't' will will be the number of nanoseconds since the board was reset.
- * The timers on the board have only 32 bits and their resolution is in microseconds, so
- * the time returned will always be an even number of microseconds. Moreover, after about 71
- * minutes of operation, the timer overflows. To correct for this, this function assumes that
- * if the time returned by the timer is less than what it returned on the previous call, then
- * a single overflow has occurred. The function therefore adds about 71 minutes to the time
- * returned.  This will work correctly as long as this function is called at intervals that
- * do not exceed 71 minutes. 
- *
- * @return 0 for success, or -1 for failure. In case of failure, errno will be
- *  set appropriately (see `man 2 clock_gettime`).
+ * By reading out the hi-word of the time before and after accessing the timer we know
+ * wether there occurred an timer-overflow while reading. If so, read once again and use latest value
  */
 int lf_clock_gettime(instant_t* t) {
     if (t == NULL) {
@@ -190,17 +183,20 @@ int lf_clock_gettime(instant_t* t) {
         // errno = EFAULT; //TODO: why does this not work with new build process?
         return -1;
     }
-    uint32_t curr_timer_time;
-    // capture latest timer value
-    curr_timer_time = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL1);
+
+    uint32_t now_us_hi_pre = _lf_time_us_high;
+    uint32_t now_us_low = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL1);
+    uint32_t now_us_hi_post = _lf_time_us_high;
     
-    // in case overflow interrupt was missed
-    if (_lf_previous_timer_time > curr_timer_time) {
-        _lf_time_epoch_offset += (1LL << 32) * 1000;
-        _lf_overflow_corrected = true;
+    // Check if we read the time during a wrap
+    if (now_us_hi_pre != now_us_hi_post) {
+        // There was a wrap. read again and return
+        now_us_low = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL1);
     }
-    *t = ((instant_t)curr_timer_time) * 1000 + _lf_time_epoch_offset;
-    _lf_previous_timer_time = curr_timer_time;
+
+    uint64_t now_us = COMBINE_HI_LO(now_us_hi_post, now_us_low);
+
+    *t = ((instant_t)now_us) * 1000;
     return 0;
 }
 
@@ -233,14 +229,16 @@ int lf_nanosleep(instant_t requested_sleep_ns) {
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, sleep_until_us, true);
  
     // enable nvic
-    sd_nvic_critical_region_exit(_lf_nested_region);
+    //sd_nvic_critical_region_exit(_lf_nested_region);
     // wait for interrupt
+    nrf_gpio_pin_set(PIN3);
     __WFE();
+    nrf_gpio_pin_clear(PIN3);
     // disable nvic
-    sd_nvic_critical_region_enter(&_lf_nested_region);
-    
+    //sd_nvic_critical_region_enter(&_lf_nested_region);
+
     int result = (_lf_timer_interrupted) ? 0 : -1;
-    // Check whether timer interrupted and return -1 on nont timer interrupt.
-    // This will force the event queue to be checked again.
+
+    nrf_gpio_pin_clear(PIN1);
     return result;
 }
