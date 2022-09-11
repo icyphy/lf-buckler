@@ -211,24 +211,31 @@ int lf_clock_gettime(instant_t* t) {
  *
  * @return 0 for success, or -1 if interrupted.
  */
-int lf_nanosleep(instant_t requested_time) {
-    uint32_t target_timer_val;
-    instant_t target_time;
+int lf_nanosleep(instant_t requested_sleep_ns) {
+    nrf_gpio_pin_set(PIN1);
 
-    lf_clock_gettime(&target_time);
-    target_time += requested_time;
-    target_timer_val = (requested_time - _lf_time_epoch_offset) / 1000;
+    // If sleep request is too high. Return -1 until it is small enough
+    //  in practice a busy wait until the sleep is less than an overflow period of the timer
+    if (requested_sleep_ns > MAX_SLEEP_NS) {
+        return -1;
+    }
+
+
+    uint32_t requested_sleep_us = (uint32_t) (requested_sleep_ns/1000);
+    uint32_t now_us = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
+    uint32_t sleep_until_us = requested_sleep_us + now_us;
 
     // timer interrupt flag default false
     // callback fires and asserts bool
     _lf_timer_interrupted = false;
     // init timer interrupt for sleep time
-    nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
-    
+    printf("now: %lu request: %lli sleep_until: %lu \n", now_us, requested_sleep_ns, sleep_until_us);
+    nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, sleep_until_us, true);
+ 
     // enable nvic
     sd_nvic_critical_region_exit(_lf_nested_region);
     // wait for interrupt
-    sd_app_evt_wait();
+    __WFE();
     // disable nvic
     sd_nvic_critical_region_enter(&_lf_nested_region);
     
