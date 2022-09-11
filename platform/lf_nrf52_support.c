@@ -286,6 +286,13 @@ int lf_critical_section_exit() {
     return 0;
 }
 
+/**
+ * @brief Do nothing. On the NRF, sleep interruptions are recorded in
+ * the function _lf_timer_event_handler. Whenever sleep gets interrupted,
+ * the next function is re-entered to make sure the event queue gets 
+ * checked again.
+ * @return 0 
+ */
 int lf_notify_of_event() {
    return 0;
 }
