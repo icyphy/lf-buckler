@@ -1,7 +1,5 @@
-/* MacOS API support for the C target of Lingua Franca. */
-
 /*************
-Copyright (c) 2021, The University of California at Berkeley.
+Copyright (c) 2022, The University of California at Berkeley.
 
 Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the following conditions are met:
@@ -34,6 +32,7 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <stdlib.h> // Defines malloc.
 #include <string.h> // Defines memcpy.
+#include <assert.h>
 
 #include "lf_nrf52_support.h"
 #include "../platform.h"
@@ -43,9 +42,6 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nrf_nvic.h"
 #include "nrf_soc.h"
 #include "app_error.h"
-
-#ifdef NUMBER_OF_WORKERS
-#endif
 
 /**
  * True when the last requested sleep has been completed, false otherwise.
@@ -204,41 +200,61 @@ int lf_clock_gettime(instant_t* t) {
 }
 
 /**
- * Pause execution for a number of nanoseconds.
- * This implementation busy waits until the time reported by lf_clock_gettime()
- * elapses by more than the requested time.
- *
- * @return 0 for success, or -1 if interrupted.
+ * @brief Return whether the critical section has been entered.
+ * 
+ * @return true if interrupts are currently disabled
+ * @return false if interrupts are currently enabled
+ */
+bool in_critical_section() {
+    // FIXME: if somehow interrupts get disabled directly (not through the NRF API),
+    // then this will go undetected. A lower-level implementation that uses the ARM
+    // instruction set directly would solve this problem.    
+    if (nrf_nvic_state.__cr_flag != 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/**
+ * @brief Pause execution for a given duration.
+ * 
+ * This implementation performs a busy-wait because it is unclear what will
+ * happen if this function is called from within an ISR.
+ * 
+ * @param sleep_duration 
+ * @return 0 for success, or -1 for failure.
  */
 int lf_sleep(interval_t sleep_duration) {
     instant_t target_time;
-
-    // This is a temporary fix.
-    // What really should be done:
-    // - compute target time
-    // - disable interrupts
-    // - read current time
-    // - compute shortest distance between target time and current time 
-    // - shortest distance should be positive and at least 2 ticks(us)
-    if (sleep_duration < USEC(5)) {
-        return -1;
+    instant_t current_time;
+    lf_clock_gettime(&current_time);
+    target_time = current_time + sleep_duration;
+    while (target_time <= current_time) {
+        lf_clock_gettime(&current_time);
     }
+    return 0;
+}
 
-    lf_clock_gettime(&target_time);
-    target_time += sleep_duration;
-    printf("Going to sleep for %"PRId64" ns\n", sleep_duration);
-
-    // FIXME: race condition: an interrupt could have happened before reaching here
-    // This can be avoided by entering the critical section before peeking and staying
-    // in the critical section until waiting for the exception. We should probably
-    // re-enter before returning.
-    _lf_sleep_completed = false; 
-
-    uint32_t target_timer_val = (uint32_t)(target_time / 1000);
-    uint32_t curr_timer_time = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
-
-    printf("Entering suspend wait until t+%"PRIu32" us (curr timer time: %"PRIu32")\n", target_timer_val, curr_timer_time);
+/**
+ * @brief Sleep until the given wakeup time.
+ * 
+ * @param wakeup_time The time instant at which to wake up.
+ * @return int 0 if sleep completed, or -1 if it was interrupted.
+ */
+int lf_sleep_until(instant_t wakeup_time) {
     
+    _lf_sleep_completed = false;
+
+    uint32_t target_timer_val = (uint32_t)(wakeup_time / 1000);
+    uint32_t curr_timer_val = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
+
+    printf("Entering suspend wait until t+%"PRIu32" us (current value: %"PRIu32")\n", target_timer_val, curr_timer_val);
+    
+    // assert that indeed we are in the critical section
+    assert(in_critical_section());
+    lf_critical_section_exit();
+
     // init timer interrupt for sleep time
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
     
@@ -248,6 +264,8 @@ int lf_sleep(interval_t sleep_duration) {
     // disable interrupt in case it is still pending
     nrfx_timer_compare_int_disable(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
 
+    lf_critical_section_enter();
+    
     if (_lf_sleep_completed) {
         return 0;
     } else {

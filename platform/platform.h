@@ -56,6 +56,12 @@ typedef _interval_t interval_t;
 typedef _microstep_t microstep_t;
 
 /**
+ * @brief 
+ * 
+ */
+extern int wait_until(instant_t wakeup_time);
+
+/**
  * Enter a critical section where logical time and the event queue are guaranteed
  * to not change unless they are changed within the critical section.
  * In platforms with threading support, this normally will be implemented
