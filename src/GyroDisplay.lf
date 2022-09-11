@@ -1,0 +1,27 @@
+/** 
+ * Display the output of the GyroAngle periodically.
+ */
+target C {
+    threading: false,
+    build: "../scripts/build_nrf_unix.sh",
+};
+import GyroAngle from "lib/GyroAngle.lf";
+import Display from "lib/Display.lf";
+
+main reactor {
+    gyro = new GyroAngle();
+    dx = new Display(row = 0);
+    dy = new Display(row = 1);
+    reaction(gyro.x, gyro.y, gyro.z) -> dx.message, dy.message {=
+        static char x[BUCKLER_DISPLAY_WIDTH + 1];
+        snprintf(x, BUCKLER_DISPLAY_WIDTH + 1, "x:%4.0f z:%4.0f",
+            gyro.x->value, gyro.z->value
+        );
+        lf_set(dx.message, x);
+        static char y[BUCKLER_DISPLAY_WIDTH + 1];
+        snprintf(y, BUCKLER_DISPLAY_WIDTH + 1, "y:%4.0f",
+            gyro.y->value
+        );
+        lf_set(dy.message, y);
+    =}
+}

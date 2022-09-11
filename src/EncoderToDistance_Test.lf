@@ -1,0 +1,72 @@
+/** 
+ * Test the reactor that converts encoder to distance for use
+ * in lab exercise 7.2.3.
+ * This test fails with the template code.
+ * Your task is to make it pass by modifying the template.
+ */
+target C {
+    timeout: 1 sec
+};
+import EncoderToDistance from "lib/EncoderToDistance_Template.lf";
+
+preamble {=
+    #include <math.h>
+    /** Return true if two floats are close to one another. */
+    static bool are_close(float a, float b) {
+        if (fabs(a - b) < 0.0001) return true;
+        return false;
+    }
+=}
+main reactor(ticks_to_meters:float(0.0006108)) {
+    timer t(0, 100 msec); // 10 ticks per second.
+    
+    // State variables giving encoder readings.
+    state reading_up:uint16_t(30000);   // Start in the middle of the range.
+    state reading_down:uint16_t(30000); // Start in the middle of the range.
+    
+    // Expected distance traveled.
+    state expected_distance_up:float(0); 
+    state expected_distance_down:float(0); 
+    
+    // Make sure data is received.
+    state received:int(0);
+
+    converter_up = new EncoderToDistance(
+        ticks_to_meters = ticks_to_meters,
+        init_encoder = 30000
+    );
+    converter_down = new EncoderToDistance(
+        ticks_to_meters = ticks_to_meters,
+        init_encoder = 30000
+    );
+    reaction(t) -> converter_up.encoder, converter_down.encoder {=
+        lf_set(converter_up.encoder, self->reading_up);
+        lf_set(converter_down.encoder, self->reading_down);
+        self->reading_up += 10000;     // Overflow will occur.
+        self->reading_down -= 10000;   // Underflow will occur.
+    =}
+    
+    reaction(converter_up.distance) {=
+        printf("Up has traveled %f\n", converter_up.distance->value);
+        if (!are_close(converter_up.distance->value, self->expected_distance_up)) {
+            lf_print_error_and_exit("Expected %f", self->expected_distance_up);
+        }
+        self->expected_distance_up += 10000 * self->ticks_to_meters;
+        self->received++;
+    =}
+
+    reaction(converter_down.distance) {=
+        printf("Down has traveled %f\n", converter_down.distance->value);
+        if (!are_close(converter_down.distance->value, self->expected_distance_down)) {
+            lf_print_error_and_exit("Expected %f", self->expected_distance_down);
+        }
+        self->expected_distance_down -= 10000 * self->ticks_to_meters;
+        self->received++;
+    =}
+    
+    reaction(shutdown) {=
+        if (self->received != 22) {
+            lf_print_error_and_exit("Received %d measurements. Expected 22.", self->received);
+        }
+    =}
+}

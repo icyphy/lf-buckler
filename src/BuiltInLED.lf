@@ -50,26 +50,41 @@ reactor FlashingLEDs {
     reaction(startup) -> btn {=
         // btn handle
         p_btn_trigger = btn;
+        
         // Configure LEDs by defining their GPIO pins as outputs.
         // Initially, the LEDs will be on.
-        ret_code_t err_code;
+        ret_code_t error_code = NRF_SUCCESS;
 
-        err_code = nrf_drv_gpiote_init();
-        APP_ERROR_CHECK(err_code);
+        // Initialize GPIO driver.
+        if (!nrfx_gpiote_is_init()) {
+            error_code = nrfx_gpiote_init();
+        }
+        APP_ERROR_CHECK(error_code);
 
-        nrf_gpio_cfg_output(LED0);
-        nrf_gpio_cfg_output(LED1);
-        nrf_gpio_cfg_output(LED2);
+        // Configure LEDs.
+        // Manually-controlled (simple) output, initially set.
+        nrfx_gpiote_out_config_t out_config = NRFX_GPIOTE_CONFIG_OUT_SIMPLE(true);
 
-        nrf_gpio_cfg_output(LED3);
+        error_code = nrfx_gpiote_out_init(LED0, &out_config);
+        APP_ERROR_CHECK(error_code);
+        error_code = nrfx_gpiote_out_init(LED1, &out_config);
+        APP_ERROR_CHECK(error_code);
+        error_code = nrfx_gpiote_out_init(LED2, &out_config);
+        APP_ERROR_CHECK(error_code);
+        error_code = nrfx_gpiote_out_init(LED3, &out_config);
+        APP_ERROR_CHECK(error_code);
+
         nrf_gpio_pin_set(LED3);
 
-        nrf_drv_gpiote_in_config_t in_config = GPIOTE_CONFIG_IN_SENSE_HITOLO(true); // falling edge interrupt
+        // Set up config struct for a falling edge interrupt.
+        // Input pin, trigger on high to low, high accuracy (disallows low-power operation).
+        nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
         in_config.pull = NRF_GPIO_PIN_PULLUP;
-        err_code = nrf_drv_gpiote_in_init(BTN1, &in_config, btn_pin_handle);
-        APP_ERROR_CHECK(err_code);
-
-        nrf_drv_gpiote_in_event_enable(BTN1, true);
+        error_code = nrfx_gpiote_in_init(BTN1, &in_config, btn_pin_handle);
+        APP_ERROR_CHECK(error_code);
+        
+        // Enable interrupts.
+        nrfx_gpiote_in_event_enable(BTN1, true);
     =}
     reaction(t1) {=
         nrf_gpio_pin_toggle(LED0);
