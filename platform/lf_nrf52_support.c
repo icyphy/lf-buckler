@@ -63,7 +63,7 @@ static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
 #define COMBINE_HI_LO(hi,lo) ((((uint64_t) hi) << 32) | ((uint64_t) lo))
 
 // Maximum sleep possible
-#define MAX_SLEEP_NS 1000ULL*UINT32_MAX
+#define MAX_SLEEP_NS 1000LL*UINT32_MAX
 
 /**
  * Variable tracking the higher 32bits of the time
@@ -258,6 +258,17 @@ int lf_sleep(interval_t sleep_duration) {
 int lf_sleep_until(instant_t wakeup_time) {
     
     _lf_sleep_completed = false;
+    // FIXME: The proper way to do this is scheduling multiple sleeps in a while loop
+    //  when the sleeps return either there was an interrupt (in which case we return)
+    //  or it completed and we continue to next max sleep until we are finished.
+    //  this fix results in busy-sleeping until duration<max_sleep
+    instant_t now;
+    lf_clock_gettime(&now);
+    interval_t duration = wakeup_time - now;
+    if (duration > MAX_SLEEP_NS) {
+        nrf_gpio_pin_clear(PIN1);
+        return -1;
+    }
 
     uint32_t target_timer_val = (uint32_t)(wakeup_time / 1000);
     uint32_t curr_timer_val = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
