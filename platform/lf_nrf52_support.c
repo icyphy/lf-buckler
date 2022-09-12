@@ -42,6 +42,7 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nrf.h"
 #include "nrfx_timer.h"
+#include "nrf_pwr_mgmt.h"
 #include "nrf_nvic.h"
 #include "nrf_soc.h"
 #include "app_error.h"
@@ -146,6 +147,10 @@ void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
 void lf_initialize_clock() {
     _lf_time_epoch_offset = 0LL;
     _lf_previous_timer_time = 0u;
+    // initialize power management
+  
+    ret_code_t error_code = nrf_pwr_mgmt_init();
+    APP_ERROR_CHECK(error_code);
 
     // Initialize TIMER3 as a free running timer
     // 1) Set to be a 32 bit timer
@@ -161,12 +166,15 @@ void lf_initialize_clock() {
         .p_context = NULL,
     };
 
-    nrfx_timer_init(&g_lf_timer_inst, &timer_conf, &lf_timer_event_handler);
-    
+    error_code = nrfx_timer_init(&g_lf_timer_inst, &timer_conf, &lf_timer_event_handler);
+    APP_ERROR_CHECK(error_code);
     // Enable an interrupt to occur on channel NRF_TIMER_CC_CHANNEL3
     // when the timer reaches its maximum value and is about to overflow.
-    nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, ~0x0, true);
-    nrfx_timer_enable(&g_lf_timer_inst);
+    error_code = rfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, 0x0, true);
+    error_code = rfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, ~0x0, true);
+    APP_ERROR_CHECK(error_code);
+    error_code = nrfx_timer_enable(&g_lf_timer_inst);
+    APP_ERROR_CHECK(error_code);
 }
 
 /**
@@ -263,7 +271,7 @@ int lf_sleep_until(instant_t wakeup_time) {
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
     
     // wait for exception
-    __WFE();
+    nrf_pwr_mgmt_run();
     
     // disable interrupt in case it is still pending
     nrfx_timer_compare_int_disable(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
