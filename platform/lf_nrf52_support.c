@@ -259,7 +259,7 @@ int lf_sleep_until(instant_t wakeup_time) {
     uint32_t target_timer_val = (uint32_t)(wakeup_time / 1000);
     uint32_t curr_timer_val = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
 
-    printf("Entering suspend wait until t+%"PRIu32" us (current value: %"PRIu32")\n", target_timer_val, curr_timer_val);
+    //printf("Entering suspend wait until t+%"PRIu32" us (current value: %"PRIu32")\n", target_timer_val, curr_timer_val);
     
     // assert that indeed we are in the critical section
     assert(in_critical_section());

@@ -51,7 +51,7 @@ pqueue_t* reaction_q;
  * to prevent unnecessary delays caused by simply setting up and
  * performing the wait.
  */
-#define MIN_SLEEP_DURATION USEC(10) // FIXME: this must become part of the platform API!!!
+#define MIN_SLEEP_DURATION USEC(10) // FIXME: https://github.com/lf-lang/reactor-c/issues/109
 
 /**
  * Mark the given port's is_present field as true. This is_present field
@@ -97,6 +97,7 @@ int wait_until(instant_t wakeup_time) {
             return 0;
         } else if (sleep_duration < MIN_SLEEP_DURATION) {
             // This is a temporary fix. FIXME: factor this out into platform API function.
+            // Issue: https://github.com/lf-lang/reactor-c/issues/109
             // What really should be done on embedded platforms:
             // - compute target time
             // - disable interrupts
@@ -107,7 +108,7 @@ int wait_until(instant_t wakeup_time) {
                 sleep_duration, MIN_SLEEP_DURATION);
             return -1;
         }
-        printf("Going to sleep for %"PRId64" ns\n", sleep_duration);
+        LF_PRINT_DEBUG("Going to sleep for %"PRId64" ns\n", sleep_duration);
         return lf_sleep_until(wakeup_time);
     }
     return 0;
