@@ -69,7 +69,7 @@ static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
  * Variable tracking the higher 32bits of the time
  * Incremented at each timer overflow
  */
-static uint32_t _lf_time_us_high = 0;
+static volatile uint32_t _lf_time_us_high = 0;
 
 /**
  * Flag passed to sd_nvic_critical_region_*
