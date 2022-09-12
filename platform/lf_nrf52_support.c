@@ -171,7 +171,6 @@ void lf_initialize_clock() {
     // Enable an interrupt to occur on channel NRF_TIMER_CC_CHANNEL3
     // when the timer reaches its maximum value and is about to overflow.
     error_code = rfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, 0x0, true);
-    error_code = rfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, ~0x0, true);
     APP_ERROR_CHECK(error_code);
     error_code = nrfx_timer_enable(&g_lf_timer_inst);
     APP_ERROR_CHECK(error_code);
@@ -256,6 +255,7 @@ int lf_sleep(interval_t sleep_duration) {
  */
 int lf_sleep_until(instant_t wakeup_time) {
     
+        nrf_gpio_pin_set(PIN3);
     _lf_sleep_completed = false;
 
     uint32_t target_timer_val = (uint32_t)(wakeup_time / 1000);
