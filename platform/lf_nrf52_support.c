@@ -243,7 +243,7 @@ int lf_sleep(interval_t sleep_duration) {
     instant_t current_time;
     lf_clock_gettime(&current_time);
     target_time = current_time + sleep_duration;
-    while (target_time <= current_time) {
+    while (current_time <= target_time) {
         lf_clock_gettime(&current_time);
     }
     return 0;
