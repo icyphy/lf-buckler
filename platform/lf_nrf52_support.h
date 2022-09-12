@@ -43,7 +43,9 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Failing to do this results in printf often deadlocking and never returning.
 // This seems to reliably triggerable by calling printf again shortly after
 // having just called it.
-#define printf(...) nrf_delay_ms(100); printf(__VA_ARGS__)
+// Update erlingrj: I removed the delay. I have not observed any deadlocks here
+//  are you sure this was the root cause?
+#define printf(...) printf(__VA_ARGS__)
 
 #ifdef NUMBER_OF_WORKERS
 
