@@ -58,10 +58,17 @@ volatile bool _lf_sleep_completed = false;
  */
 static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
 
+// Combine 2 32bit works to a 64 bit word
+#define COMBINE_HI_LO(hi,lo) ((((uint64_t) hi) << 32) | ((uint64_t) lo))
+
+// Maximum sleep possible
+#define MAX_SLEEP_NS 1000ULL*UINT32_MAX
+
 /**
- * Flag to be raised when overflow occurs and is corrected.
+ * Variable tracking the higher 32bits of the time
+ * Incremented at each timer overflow
  */
-bool _lf_overflow_corrected = false;
+static uint32_t _lf_time_us_high = 0;
 
 /**
  * Flag passed to sd_nvic_critical_region_*
@@ -110,12 +117,6 @@ void calculate_epoch_offset() {
 }
 
 /**
- * To handle overflow of a 32-bit timer with microsecond resolution,
- * record the previous query to the timer here.
- */
-uint32_t _lf_previous_timer_time = 0u;
-
-/**
  * Handles LF timer interrupts
  * Using lf_timer instance -> id = 3
  * channel2 -> channel for lf_sleep interrupt
@@ -132,13 +133,10 @@ void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
     if (event_type == NRF_TIMER_EVENT_COMPARE2) {
         _lf_sleep_completed = true;
     } else if (event_type == NRF_TIMER_EVENT_COMPARE3) {
-        if (!_lf_overflow_corrected) {
-            _lf_time_epoch_offset += (1LL << 32) * 1000;
-        }
+        _lf_time_us_high =+ 1;
     } else {
         printf("Some unexpected event happened: %d", event_type);
     }
-    _lf_overflow_corrected = false;
 }
 
 /**
@@ -146,7 +144,7 @@ void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
  */
 void lf_initialize_clock() {
     _lf_time_epoch_offset = 0LL;
-    _lf_previous_timer_time = 0u;
+    _lf_time_us_high = 0;
     // initialize power management
   
     ret_code_t error_code = nrf_pwr_mgmt_init();
@@ -179,11 +177,12 @@ void lf_initialize_clock() {
  * timestamp value in 't' will will be the number of nanoseconds since the board was reset.
  * The timers on the board have only 32 bits and their resolution is in microseconds, so
  * the time returned will always be an even number of microseconds. Moreover, after about 71
- * minutes of operation, the timer overflows. To correct for this, this function assumes that
- * if the time returned by the timer is less than what it returned on the previous call, then
- * a single overflow has occurred. The function therefore adds about 71 minutes to the time
- * returned.  This will work correctly as long as this function is called at intervals that
- * do not exceed 71 minutes. 
+ * minutes of operation, the timer overflows. 
+ * 
+ * The function reads out the upper word before and after reading the timer.
+ * If the upper word has changed (i.e. it was an overflow in between),
+ * we cannot simply combine them. We read once more to be sure that 
+ * we read after the overflow.
  *
  * @return 0 for success, or -1 for failure. In case of failure, errno will be
  *  set appropriately (see `man 2 clock_gettime`).
@@ -194,17 +193,19 @@ int lf_clock_gettime(instant_t* t) {
         // errno = EFAULT; //TODO: why does this not work with new build process?
         return -1;
     }
-    uint32_t curr_timer_time;
-    // capture latest timer value
-    curr_timer_time = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL1);
-    
-    // in case overflow interrupt was missed
-    if (_lf_previous_timer_time > curr_timer_time) {
-        _lf_time_epoch_offset += (1LL << 32) * 1000;
-        _lf_overflow_corrected = true;
+    uint32_t now_us_hi_pre = _lf_time_us_high;
+    uint32_t now_us_low = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL1);
+    uint32_t now_us_hi_post = _lf_time_us_high; 
+
+    // Check if we read the time during a wrap
+    if (now_us_hi_pre != now_us_hi_post) {
+        // There was a wrap. read again and return
+        now_us_low = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL1);
     }
-    *t = ((instant_t)curr_timer_time) * 1000 + _lf_time_epoch_offset;
-    _lf_previous_timer_time = curr_timer_time;
+    uint64_t now_us = COMBINE_HI_LO(now_us_hi_post, now_us_low);
+
+    *t = ((instant_t)now_us) * 1000;
+
     return 0;
 }
 
@@ -253,7 +254,6 @@ int lf_sleep(interval_t sleep_duration) {
  */
 int lf_sleep_until(instant_t wakeup_time) {
     
-        nrf_gpio_pin_set(PIN3);
     _lf_sleep_completed = false;
 
     uint32_t target_timer_val = (uint32_t)(wakeup_time / 1000);
