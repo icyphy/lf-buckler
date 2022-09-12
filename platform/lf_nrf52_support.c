@@ -304,5 +304,8 @@ int lf_critical_section_exit() {
  * @return 0 
  */
 int lf_notify_of_event() {
+    // FIXME: record notifications so that we can immediately
+    // restart the timer in case the interrupt was unrelated
+    // to the scheduling of a new event.
    return 0;
 }
