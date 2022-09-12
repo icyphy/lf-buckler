@@ -131,11 +131,13 @@ void calculate_epoch_offset() {
 void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
     
     if (event_type == NRF_TIMER_EVENT_COMPARE2) {
+        LF_PRINT_DEBUG("Sleep timer expired!");
         _lf_sleep_completed = true;
     } else if (event_type == NRF_TIMER_EVENT_COMPARE3) {
         _lf_time_us_high =+ 1;
+        LF_PRINT_DEBUG("Overflow detected!");
     } else {
-        printf("Some unexpected event happened: %d", event_type);
+        LF_PRINT_DEBUG("Some unexpected event happened: %d", event_type);
     }
 }
 
@@ -259,7 +261,7 @@ int lf_sleep_until(instant_t wakeup_time) {
     uint32_t target_timer_val = (uint32_t)(wakeup_time / 1000);
     uint32_t curr_timer_val = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
 
-    //printf("Entering suspend wait until t+%"PRIu32" us (current value: %"PRIu32")\n", target_timer_val, curr_timer_val);
+    LF_PRINT_DEBUG("Entering suspend wait until t+%"PRIu32" us (current value: %"PRIu32")\n", target_timer_val, curr_timer_val);
     
     // assert that indeed we are in the critical section
     assert(in_critical_section());
@@ -279,7 +281,7 @@ int lf_sleep_until(instant_t wakeup_time) {
     if (_lf_sleep_completed) {
         return 0;
     } else {
-        // printf("Sleep got interrupted...\n");
+        LF_PRINT_DEBUG("Sleep got interrupted...\n");
         return -1;
     }
 }
