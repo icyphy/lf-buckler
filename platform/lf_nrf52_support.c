@@ -253,7 +253,6 @@ int lf_sleep(interval_t sleep_duration) {
  */
 int lf_sleep_until(instant_t wakeup_time) {
     
-        nrf_gpio_pin_set(PIN3);
     _lf_sleep_completed = false;
 
     uint32_t target_timer_val = (uint32_t)(wakeup_time / 1000);
@@ -304,5 +303,8 @@ int lf_critical_section_exit() {
  * @return 0 
  */
 int lf_notify_of_event() {
+    // FIXME: record notifications so that we can immediately
+    // restart the timer in case the interrupt was unrelated
+    // to the scheduling of a new event.
    return 0;
 }
