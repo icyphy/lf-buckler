@@ -310,5 +310,6 @@ int lf_notify_of_event() {
     // FIXME: record notifications so that we can immediately
     // restart the timer in case the interrupt was unrelated
     // to the scheduling of a new event.
+    // Issue: https://github.com/icyphy/lf-buckler/issues/15
    return 0;
 }
