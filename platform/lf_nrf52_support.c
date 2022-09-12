@@ -170,10 +170,8 @@ void lf_initialize_clock() {
     APP_ERROR_CHECK(error_code);
     // Enable an interrupt to occur on channel NRF_TIMER_CC_CHANNEL3
     // when the timer reaches its maximum value and is about to overflow.
-    error_code = rfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, 0x0, true);
-    APP_ERROR_CHECK(error_code);
-    error_code = nrfx_timer_enable(&g_lf_timer_inst);
-    APP_ERROR_CHECK(error_code);
+    nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, 0x0, true);
+    nrfx_timer_enable(&g_lf_timer_inst);
 }
 
 /**
