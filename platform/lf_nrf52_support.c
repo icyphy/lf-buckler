@@ -266,7 +266,6 @@ int lf_sleep_until(instant_t wakeup_time) {
     lf_clock_gettime(&now);
     interval_t duration = wakeup_time - now;
     if (duration > MAX_SLEEP_NS) {
-        nrf_gpio_pin_clear(PIN1);
         return -1;
     }
 
