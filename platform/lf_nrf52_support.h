@@ -39,20 +39,6 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nrf_delay.h"
 
-// FIXME: Hack to introduce delay before printf.
-// Failing to do this results in printf often deadlocking and never returning.
-// This seems to reliably triggerable by calling printf again shortly after
-// having just called it.
-#define printf(...) nrf_delay_ms(100); printf(__VA_ARGS__)
-
-#ifdef NUMBER_OF_WORKERS
-
-// typedef nrf_mtx_t _lf_mutex_t;
-// typedef CONDITION_VARIABLE _lf_cond_t;
-// typedef HANDLE _lf_thread_t;
-
-#endif
-
 /**
  * For the nrf52, each mutex will control an interrupt.
  *
@@ -97,13 +83,6 @@ typedef struct nrf_int {
 } nrf_int;
 
 typedef struct nrf_int _lf_mutex_t;
-
-// TODO: find a better way to implement this
-/**
- * Keep track of interrupts being raised.
- * Allow sleep to exit with nonzero return on interrupt.
- */
-extern uint8_t INT_RAISED;
 
 /**
  * Time instant. Both physical and logical times are represented

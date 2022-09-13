@@ -17,7 +17,7 @@ preamble {=
 =}
 
 main reactor {
-    timer t(0, 500 msec);       // Offset = 0, period = 500 msec
+    timer t(0, 50 msec);        // Offset = 0, period = 50 msec
     state count:int(0);         // count is initialized to 0.
     reaction(startup) {=
         ret_code_t error_code = NRF_SUCCESS;

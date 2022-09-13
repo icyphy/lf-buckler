@@ -1,7 +1,5 @@
-/* MacOS API support for the C target of Lingua Franca. */
-
 /*************
-Copyright (c) 2021, The University of California at Berkeley.
+Copyright (c) 2022, The University of California at Berkeley.
 
 Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the following conditions are met:
@@ -29,25 +27,31 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * @author{Soroush Bateni <soroush@utdallas.edu>}
  * @author{Abhi Gundrala <gundralaa@berkeley.edu>}
+ * @author{Erling Jellum} <erling.r.jellum@ntnu.no>}
+ * @author{Marten Lohstroh <marten@berkeley.edu>}
  */
 
 #include <stdlib.h> // Defines malloc.
 #include <string.h> // Defines memcpy.
+#include <assert.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 #include "lf_nrf52_support.h"
 #include "../platform.h"
+#include "../utils/util.h"
 
 #include "nrf.h"
 #include "nrfx_timer.h"
+#include "nrf_pwr_mgmt.h"
 #include "nrf_nvic.h"
 #include "nrf_soc.h"
 #include "app_error.h"
 
-#ifdef NUMBER_OF_WORKERS
-#endif
-
-#include <stdarg.h>
-#include <stdio.h>
+/**
+ * True when the last requested sleep has been completed, false otherwise.
+ */
+volatile bool _lf_sleep_completed = false;
 
 /**
  * lf global timer instance
@@ -55,14 +59,22 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
 
+// Combine 2 32bit works to a 64 bit word
+#define COMBINE_HI_LO(hi,lo) ((((uint64_t) hi) << 32) | ((uint64_t) lo))
+
+// Maximum sleep possible
+#define MAX_SLEEP_NS 1000LL*UINT32_MAX
+
 /**
- * Keep track of interrupts being raised.
- * Allow sleep to exit with nonzero return on interrupt.
+ * Variable tracking the higher 32bits of the time
+ * Incremented at each timer overflow
  */
-bool _lf_timer_interrupted = false;
-bool _lf_overflow_corrected = false;
-// FIXME: Remove this. See other FIXMEs associated with it.
-// uint8_t _lf_nested_region = 0;
+static volatile uint32_t _lf_time_us_high = 0;
+
+/**
+ * Flag passed to sd_nvic_critical_region_*
+ */
+uint8_t _lf_nested_region = 0;
 
 /**
  * Offset to _LF_CLOCK that would convert it
@@ -106,15 +118,9 @@ void calculate_epoch_offset() {
 }
 
 /**
- * To handle overflow of a 32-bit timer with microsecond resolution,
- * record the previous query to the timer here.
- */
-uint32_t _lf_previous_timer_time = 0u;
-
-/**
  * Handles LF timer interrupts
  * Using lf_timer instance -> id = 3
- * channel2 -> channel for lf_nanosleep interrupt
+ * channel2 -> channel for lf_sleep interrupt
  * channel3 -> channel for overflow interrupt
  *
  * [in] event_type
@@ -125,20 +131,15 @@ uint32_t _lf_previous_timer_time = 0u;
  */
 void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
     
-    // check if event triggered on channel 2
-    // sleep handle
     if (event_type == NRF_TIMER_EVENT_COMPARE2) {
-        _lf_timer_interrupted = true;
+        LF_PRINT_DEBUG("Sleep timer expired!");
+        _lf_sleep_completed = true;
+    } else if (event_type == NRF_TIMER_EVENT_COMPARE3) {
+        _lf_time_us_high =+ 1;
+        LF_PRINT_DEBUG("Overflow detected!");
+    } else {
+        LF_PRINT_DEBUG("Some unexpected event happened: %d", event_type);
     }
-
-    // check if event triggered on channel 3
-    // overflow handle
-    if (event_type == NRF_TIMER_EVENT_COMPARE3) {
-        if (!_lf_overflow_corrected) {
-            _lf_time_epoch_offset += (1LL << 32) * 1000;
-        }
-    }
-    _lf_overflow_corrected = false;
 }
 
 /**
@@ -146,7 +147,11 @@ void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
  */
 void lf_initialize_clock() {
     _lf_time_epoch_offset = 0LL;
-    _lf_previous_timer_time = 0u;
+    _lf_time_us_high = 0;
+    // initialize power management
+  
+    ret_code_t error_code = nrf_pwr_mgmt_init();
+    APP_ERROR_CHECK(error_code);
 
     // Initialize TIMER3 as a free running timer
     // 1) Set to be a 32 bit timer
@@ -162,21 +167,12 @@ void lf_initialize_clock() {
         .p_context = NULL,
     };
 
-    nrfx_timer_init(&g_lf_timer_inst, &timer_conf, &lf_timer_event_handler);
-    
+    error_code = nrfx_timer_init(&g_lf_timer_inst, &timer_conf, &lf_timer_event_handler);
+    APP_ERROR_CHECK(error_code);
     // Enable an interrupt to occur on channel NRF_TIMER_CC_CHANNEL3
     // when the timer reaches its maximum value and is about to overflow.
-    nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, ~0x0, true);
+    nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL3, 0x0, true);
     nrfx_timer_enable(&g_lf_timer_inst);
-
-    // FIXME: The following call disables interrupts.
-    // However, this causes any blocking I/O function, where a sensor is read
-    // or an actuator driven by code that waits until the I/O operation completes,
-    // to deadlock.  Most of the I/O in the labs is based on such blocking calls.
-    // As a consequence, any asynchronous call to lf_schedule() runs the risk
-    // of corrupting the event queue!  This is not safe.
-    // The solution is to fix the unthreaded C runtime to use mutexes.
-    // sd_nvic_critical_region_enter(&_lf_nested_region);
 }
 
 /**
@@ -184,11 +180,12 @@ void lf_initialize_clock() {
  * timestamp value in 't' will will be the number of nanoseconds since the board was reset.
  * The timers on the board have only 32 bits and their resolution is in microseconds, so
  * the time returned will always be an even number of microseconds. Moreover, after about 71
- * minutes of operation, the timer overflows. To correct for this, this function assumes that
- * if the time returned by the timer is less than what it returned on the previous call, then
- * a single overflow has occurred. The function therefore adds about 71 minutes to the time
- * returned.  This will work correctly as long as this function is called at intervals that
- * do not exceed 71 minutes. 
+ * minutes of operation, the timer overflows. 
+ * 
+ * The function reads out the upper word before and after reading the timer.
+ * If the upper word has changed (i.e. it was an overflow in between),
+ * we cannot simply combine them. We read once more to be sure that 
+ * we read after the overflow.
  *
  * @return 0 for success, or -1 for failure. In case of failure, errno will be
  *  set appropriately (see `man 2 clock_gettime`).
@@ -199,54 +196,131 @@ int lf_clock_gettime(instant_t* t) {
         // errno = EFAULT; //TODO: why does this not work with new build process?
         return -1;
     }
-    uint32_t curr_timer_time;
-    // capture latest timer value
-    curr_timer_time = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL1);
-    
-    // in case overflow interrupt was missed
-    if (_lf_previous_timer_time > curr_timer_time) {
-        _lf_time_epoch_offset += (1LL << 32) * 1000;
-        _lf_overflow_corrected = true;
+    uint32_t now_us_hi_pre = _lf_time_us_high;
+    uint32_t now_us_low = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL1);
+    uint32_t now_us_hi_post = _lf_time_us_high; 
+
+    // Check if we read the time during a wrap
+    if (now_us_hi_pre != now_us_hi_post) {
+        // There was a wrap. read again and return
+        now_us_low = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL1);
     }
-    *t = ((instant_t)curr_timer_time) * 1000 + _lf_time_epoch_offset;
-    _lf_previous_timer_time = curr_timer_time;
+    uint64_t now_us = COMBINE_HI_LO(now_us_hi_post, now_us_low);
+
+    *t = ((instant_t)now_us) * 1000;
+
     return 0;
 }
 
 /**
- * Pause execution for a number of nanoseconds.
- * This implementation busy waits until the time reported by lf_clock_gettime()
- * elapses by more than the requested time.
- *
- * @return 0 for success, or -1 if interrupted.
+ * @brief Return whether the critical section has been entered.
+ * 
+ * @return true if interrupts are currently disabled
+ * @return false if interrupts are currently enabled
  */
-int lf_nanosleep(instant_t requested_time) {
-    uint32_t target_timer_val;
+bool in_critical_section() {
+    // FIXME: if somehow interrupts get disabled directly (not through the NRF API),
+    // then this will go undetected. A lower-level implementation that uses the ARM
+    // instruction set directly would solve this problem.    
+    if (nrf_nvic_state.__cr_flag != 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/**
+ * @brief Pause execution for a given duration.
+ * 
+ * This implementation performs a busy-wait because it is unclear what will
+ * happen if this function is called from within an ISR.
+ * 
+ * @param sleep_duration 
+ * @return 0 for success, or -1 for failure.
+ */
+int lf_sleep(interval_t sleep_duration) {
     instant_t target_time;
+    instant_t current_time;
+    lf_clock_gettime(&current_time);
+    target_time = current_time + sleep_duration;
+    while (current_time <= target_time) {
+        lf_clock_gettime(&current_time);
+    }
+    return 0;
+}
 
-    lf_clock_gettime(&target_time);
-    target_time += requested_time;
-    target_timer_val = (requested_time - _lf_time_epoch_offset) / 1000;
+/**
+ * @brief Sleep until the given wakeup time.
+ * 
+ * @param wakeup_time The time instant at which to wake up.
+ * @return int 0 if sleep completed, or -1 if it was interrupted.
+ */
+int lf_sleep_until(instant_t wakeup_time) {
+    
+    _lf_sleep_completed = false;
+    // FIXME: The proper way to do this is scheduling multiple sleeps in a while loop
+    //  when the sleeps return either there was an interrupt (in which case we return)
+    //  or it completed and we continue to next max sleep until we are finished.
+    //  this fix results in busy-sleeping until duration<max_sleep
+    instant_t now;
+    lf_clock_gettime(&now);
+    interval_t duration = wakeup_time - now;
+    if (duration > MAX_SLEEP_NS) {
+        nrf_gpio_pin_clear(PIN1);
+        return -1;
+    }
 
-    // timer interrupt flag default false
-    // callback fires and asserts bool
-    _lf_timer_interrupted = false;
+    uint32_t target_timer_val = (uint32_t)(wakeup_time / 1000);
+    uint32_t curr_timer_val = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
+
+    LF_PRINT_DEBUG("Entering suspend wait until t+%"PRIu32" us (current value: %"PRIu32")\n", target_timer_val, curr_timer_val);
+    
+    // assert that indeed we are in the critical section
+    assert(in_critical_section());
+    lf_critical_section_exit();
+
     // init timer interrupt for sleep time
     nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
     
-    // FIXME: Remove this. See other FIXMEs associated with it.
-    // enable nvic
-    // sd_nvic_critical_region_exit(_lf_nested_region);
-     
-    // wait for interrupt
-    sd_app_evt_wait();
-
-    // FIXME: Remove this. See other FIXMEs associated with it.
-    // disable nvic
-    // sd_nvic_critical_region_enter(&_lf_nested_region);
+    // wait for exception
+    nrf_pwr_mgmt_run();
     
-    int result = (_lf_timer_interrupted) ? 0 : -1;
-    // Check whether timer interrupted and return -1 on nont timer interrupt.
-    // This will force the event queue to be checked again.
-    return result;
+    // disable interrupt in case it is still pending
+    nrfx_timer_compare_int_disable(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
+
+    lf_critical_section_enter();
+    
+    if (_lf_sleep_completed) {
+        return 0;
+    } else {
+        LF_PRINT_DEBUG("Sleep got interrupted...\n");
+        return -1;
+    }
+}
+
+int lf_critical_section_enter() {
+    // disable nvic
+    sd_nvic_critical_region_enter(&_lf_nested_region);
+    return 0;
+}
+
+int lf_critical_section_exit() {
+    // enable nvic
+    sd_nvic_critical_region_exit(_lf_nested_region);
+    return 0;
+}
+
+/**
+ * @brief Do nothing. On the NRF, sleep interruptions are recorded in
+ * the function _lf_timer_event_handler. Whenever sleep gets interrupted,
+ * the next function is re-entered to make sure the event queue gets 
+ * checked again.
+ * @return 0 
+ */
+int lf_notify_of_event() {
+    // FIXME: record notifications so that we can immediately
+    // restart the timer in case the interrupt was unrelated
+    // to the scheduling of a new event.
+    // Issue: https://github.com/icyphy/lf-buckler/issues/15
+   return 0;
 }
