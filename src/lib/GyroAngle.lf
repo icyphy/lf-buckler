@@ -62,7 +62,7 @@ reactor GyroAngle(period:time(100 msec)) {
         // initialize LSM9DS1 driver
         lsm9ds1_init(&twi_mngr_instance);
     =}
-    reaction(trigger) -> x, y, z {=
+    reaction(trigger) -> z, y, x {=
         lsm9ds1_measurement_t g = lsm9ds1_read_gyro();
 
         self->previous_angle_x +=
