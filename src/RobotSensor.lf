@@ -4,14 +4,30 @@ target C {
 };
 
 preamble {=
-    #include "kobukiSensorPoll.h"
+    #include "lib/romi.h"
+    #include "nrf_delay.h"
+#include "nrf_log.h"
+#include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 =}
 
 main reactor {
-    timer t(1 sec, 500 msec);
+    timer t(0, 100 msec);
+    reaction(startup) {=
+        ret_code_t error_code = NRF_SUCCESS;
+
+        // initialize RTT library
+        error_code = NRF_LOG_INIT(NULL);
+        APP_ERROR_CHECK(error_code);
+        NRF_LOG_DEFAULT_BACKENDS_INIT();
+        printf("Log initialized!\n");
+        
+        // Initialize the robot.
+        APP_ERROR_CHECK(romi_init());
+    =}
     reaction(t) {=
         KobukiSensors_t sensor_cache;
-        kobukiSensorPoll(&sensor_cache);
+        APP_ERROR_CHECK(romi_sensor_poll(&sensor_cache));
         // print results
         printf("\n");
         printf("### Kobuki Sensor Values ###\n");

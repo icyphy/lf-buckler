@@ -22,6 +22,9 @@ cp $PROJECT_ROOT/platform/platform.h $LF_SOURCE_GEN_DIRECTORY/include/core/
 cp $PROJECT_ROOT/platform/reactor.c $LF_SOURCE_GEN_DIRECTORY/include/core/
 cp $PROJECT_ROOT/platform/reactor_common.c $LF_SOURCE_GEN_DIRECTORY/include/core/
 
+# Copy the lib directory.
+cp -r $PROJECT_ROOT/lib/* $LF_SOURCE_GEN_DIRECTORY/lib
+
 printf '
 # nRF application makefile
 PROJECT_NAME = $(shell basename "$(realpath ./)")
