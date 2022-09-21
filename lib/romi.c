@@ -90,6 +90,7 @@ int32_t romi_read_serial(uint8_t* packetBuffer, uint8_t len){
   uint8_t byteBuffer = 0;
   size_t bytes_read = 0;
 
+  // Initialization is now occurring in romi_init().
   // APP_ERROR_CHECK(kobukiUARTInit());
 
   romi_flush_drain_serial();
@@ -162,6 +163,7 @@ int32_t romi_read_serial(uint8_t* packetBuffer, uint8_t len){
         break;
     }
   }
+  // Initialization is now occurring in romi_init().
   // kobukiUARTUnInit();
   return status;
 }
