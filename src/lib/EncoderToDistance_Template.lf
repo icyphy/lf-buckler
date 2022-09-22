@@ -4,16 +4,21 @@
 target C;
 
 reactor EncoderToDistance(
-    ticks_to_meters:float(0.0006108),
-    init_encoder:uint16_t(0)
+    ticks_to_meters:float(0.0006108)
 ) {
     input encoder:uint16_t;   // Ticks.
     output distance:float;    // Meters.
     
-    state previous_encoder:uint16_t(init_encoder);
-    state previous_distance:float(0);
+    reset state previous_encoder:uint16_t(0);
+    reset state previous_distance:float(0);
+    reset state first:bool(true);   // Treat first encoder input specially.
     
     reaction (encoder) -> distance {=
+        if (self->first) {
+            // First encoder input, so distance should be zero.
+            self->previous_encoder = encoder->value;
+            self->first = false;
+        }
         // Your code goes here.
     =}
 }
