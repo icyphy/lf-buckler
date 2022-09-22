@@ -12,21 +12,20 @@
  * This code is based on code in the buckler repo orginally developed by
  * Jeff C. Jensen, Joshua Adkins, and Neal Jackson.
  */
-#include "kobukiActuator.h"
+#include "lib/romi.h"
 #include "kobukiSensor.h"
 #include "kobukiSensorTypes.h"
 #include "kobukiUtilities.h"  // Defines kobukiUARTInit(). 
+#include "buckler.h"
+#include <math.h>
 
 // nRF library files.
 #include "nrf_drv_clock.h"  // Defines nrf_drv_clock_init() and nrf_drv_clock_lfclk_request().
-#include "nrf_uarte.h"
-#include "nrf_serial.h"
+#include "nrfx_uart.h"
 #include "app_timer.h"      // Defines app_timer_init()
 
 // See romi.h for function documentation.
 
-// The following is defined in kobukiUtilities.c, which should probably go away.
-extern const nrf_serial_t * serial_ref;
 
 // NOTE: The implementation here uses code in the buckler repo.
 // Eventually, it should replace all that code.
@@ -34,22 +33,78 @@ extern const nrf_serial_t * serial_ref;
 ///////////////////////////////////////////////////////////////////////////////////////
 //// Private functions. Not documented in romi.h. Used in public functions below.
 
-/**
- * @brief Flush and drain the serial port.
- * @return NRF_SUCCESS if successful.
- */
-int32_t romi_flush_drain_serial() {
-  int32_t status = nrf_serial_flush(serial_ref, NRF_SERIAL_MAX_TIMEOUT);
-  if(status != NRF_SUCCESS) {
-    printf("flush error: %ld\n", status);
-    return status;
-  }
-  status = nrf_serial_rx_drain(serial_ref);
-  if(status != NRF_SUCCESS) {
-    printf("rx drain error: %ld\n", status);
-    return status;
-  }
-  return status;
+// UART implementation
+static nrfx_uart_t nrfx_uart = NRFX_UART_INSTANCE(0);
+static nrfx_uart_config_t nrfx_uart_cfg = NRFX_UART_DEFAULT_CONFIG;
+
+// Copied from KobukiSendPayload
+// FIXME: Clean
+static int32_t _romi_send_payload(uint8_t* payload, uint8_t len) {
+    uint8_t writeData[256] = {0};
+
+    // Write move payload
+    writeData[0] = 0xAA;
+    writeData[1] = 0x55;
+    writeData[2] = len;
+    memcpy(writeData + 3, payload, len);
+	writeData[3+len] = checkSum(writeData, 3 + len);
+
+    nrfx_err_t err = nrfx_uart_tx(&nrfx_uart, writeData, len + 4); 
+    return err; 
+}
+// Copied from kobukiDriveRadius
+static int32_t _romi_drive_radius(int16_t radius, int16_t speed){
+    uint8_t payload[6];
+    payload[0] = 0x01;
+    payload[1] = 0x04;
+    memcpy(payload+2, &speed, 2);
+    memcpy(payload+4, &radius, 2);
+
+    return _romi_send_payload(payload, 6);
+}
+
+// copier from kobukuDriveDirect
+static int32_t _romi_drive_direct(int16_t leftWheelSpeed, int16_t rightWheelSpeed){
+	int32_t CmdSpeed;
+	int32_t CmdRadius;
+
+	if (abs(rightWheelSpeed) > abs(leftWheelSpeed)) {
+	    CmdSpeed = rightWheelSpeed;
+	} else {
+	    CmdSpeed = leftWheelSpeed;
+	}
+
+	if (rightWheelSpeed == leftWheelSpeed) {
+	    CmdRadius = 0;  // Special case 0 commands Kobuki travel with infinite radius.
+	} else {
+	    CmdRadius = (rightWheelSpeed + leftWheelSpeed) / (2.0 * (rightWheelSpeed - leftWheelSpeed) / 123.0);  // The value 123 was determined experimentally to work, and is approximately 1/2 the wheelbase in mm.
+	    CmdRadius = round(CmdRadius);
+	    //if the above statement overflows a signed 16 bit value, set CmdRadius=0 for infinite radius.
+	    if (CmdRadius>32767) CmdRadius=0;
+	    if (CmdRadius<-32768) CmdRadius=0;
+	    if (CmdRadius==0) CmdRadius=1;  // Avoid special case 0 unless want infinite radius.
+	}
+
+	if (CmdRadius == 1){
+		CmdSpeed = CmdSpeed * -1;
+	}
+
+	int32_t status = _romi_drive_radius(CmdRadius, CmdSpeed);
+
+
+	return status;
+}
+
+
+int romi_uart_init() {
+  nrfx_uart_cfg.pseltxd            = BUCKLER_UART_TX;
+  nrfx_uart_cfg.pselrxd            = BUCKLER_UART_RX;
+  nrfx_uart_cfg.parity             = NRF_UART_PARITY_EXCLUDED;
+  nrfx_uart_cfg.baudrate           = NRF_UART_BAUDRATE_115200;
+  nrfx_uart_cfg.interrupt_priority = NRFX_UART_DEFAULT_CONFIG_IRQ_PRIORITY;
+
+  // Initialize UART without
+  return nrfx_uart_init(&nrfx_uart, &nrfx_uart_cfg, NULL);
 }
 
 uint8_t romi_checksum_read(uint8_t * buffer, int length){
@@ -82,60 +137,63 @@ int32_t romi_read_serial(uint8_t* packetBuffer, uint8_t len){
 
   state_type state = wait_until_header;
   uint8_t header_buf[2];
-  int32_t status = 0;
   uint8_t payloadSize = 0;
   size_t paylen;
-  size_t aa_count = 0;
   uint8_t calcuatedCS = 0;
   uint8_t byteBuffer = 0;
   size_t bytes_read = 0;
-
-  // Initialization is now occurring in romi_init().
-  // APP_ERROR_CHECK(kobukiUARTInit());
-
-  romi_flush_drain_serial();
+  nrfx_err_t ret;
+  int err_cnt = 0;
+  bool done = false;
+  // Enable reception on UART
+  nrfx_uart_rx_enable(&nrfx_uart);
 
   int num_checksum_failures = 0;
 
-  if (len <= 4) return NRF_ERROR_NO_MEM;
+  if (len <= 4) {
+    ret = NRF_ERROR_NO_MEM;
+    done = true;
+  }
 
-  while(1){
+  while(!done){
    switch(state){
       case wait_until_header:
-        bytes_read = 0;
-        status = nrf_serial_read(serial_ref, header_buf, 2, &bytes_read, 100);
-        if(status != NRF_SUCCESS) {
-          printf("UART error: %ld. Bytes read: %d\n", status, bytes_read);
-          if (aa_count++ < 20) {
-            printf("\ttrying again...\n");
-            romi_flush_drain_serial();
-            break;
-          } else {
-            printf("Failed to receive from robot.\n\tIs robot powered on?\n\tTry unplugging buckler from USB and power cycle robot\n");
-          }
-          return status;
+        ret = nrfx_uart_rx(&nrfx_uart, header_buf, 2);
+        if(ret != NRF_SUCCESS) {
+          nrfx_uart_errorsrc_get(&nrfx_uart);
+          err_cnt++;
+          break;
         }
+
         if (header_buf[0]==0xAA && header_buf[1]==0x55) {
           state = read_length;
         } else {
           state = wait_until_header;
         }
-        aa_count = 0;
         break;
 
       case read_length:
-        status = nrf_serial_read(serial_ref, &payloadSize, sizeof(payloadSize), NULL, 100);
-        if(status != NRF_SUCCESS) {
-          return status;
+        ret = nrfx_uart_rx(&nrfx_uart, &payloadSize, sizeof(payloadSize));
+        if(ret != NRF_SUCCESS) {
+          nrfx_uart_errorsrc_get(&nrfx_uart);
+          err_cnt++;
+          state = wait_until_header;
+          break;
         }
-        if(len < payloadSize+3) return NRF_ERROR_NO_MEM;
+        if(len < payloadSize+3) {
+          done = true;
+          ret = NRF_ERROR_NO_MEM;
+        }
         state = read_payload;
         break;
 
       case read_payload:
-        status = nrf_serial_read(serial_ref, packetBuffer+3, payloadSize+1, &paylen, 100);
-        if(status != NRF_SUCCESS) {
-          return status;
+        ret = nrfx_uart_rx(&nrfx_uart, packetBuffer + 3, payloadSize + 1);
+        if(ret != NRF_SUCCESS) {
+          err_cnt++;
+          nrfx_uart_errorsrc_get(&nrfx_uart);
+          state = wait_until_header;
+          break;
         }
         state = read_checksum;
         break;
@@ -146,26 +204,30 @@ int32_t romi_read_serial(uint8_t* packetBuffer, uint8_t len){
 
         calcuatedCS = romi_checksum_read(packetBuffer, payloadSize + 3);
         byteBuffer=(packetBuffer)[payloadSize+3];
+        done = true;
         if (calcuatedCS == byteBuffer) {
           num_checksum_failures = 0;
-          return NRF_SUCCESS;
+          ret = NRF_SUCCESS;
         } else {
           state = wait_until_header;
           if (num_checksum_failures == 3) {
-            return -1500;
+            ret = -1500;
           }
           num_checksum_failures++;
         }
-        printf("checksum fails: %d\n", num_checksum_failures);
         break;
 
       default:
         break;
     }
+    // If we get too many errors abort the sensor reading.
+    if (ret != NRF_SUCCESS && err_cnt >= 20) {
+      done = true;
+    }
   }
-  // Initialization is now occurring in romi_init().
-  // kobukiUARTUnInit();
-  return status;
+  nrfx_uart_rx_disable(&nrfx_uart);
+
+  return ret;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -174,14 +236,8 @@ int32_t romi_read_serial(uint8_t* packetBuffer, uint8_t len){
 int32_t romi_drive_direct(int16_t left_wheel_speed, int16_t right_wheel_speed) {
     int32_t status = 0;
 
-    // APP_ERROR_CHECK(kobukiUARTInit());
-
-    // Clear the serial port before using to drive the motors.
-    romi_flush_drain_serial();
-
     // FIXME: The following function has a number of problems. Reimplement here.
-    status = kobukiDriveDirect(left_wheel_speed, right_wheel_speed);
-    // kobukiUARTUnInit();
+    status = _romi_drive_direct(left_wheel_speed, right_wheel_speed);
 
     return status;
 }
@@ -198,9 +254,8 @@ uint32_t romi_init() {
     APP_ERROR_CHECK(err_code);
   }
 
-  // The original version of this did not initialize the UART. Now we do that here.
-  // This is needed in order to be able to send data to the Romi via romi_drive_direct.
-  APP_ERROR_CHECK(kobukiUARTInit());
+  err_code = romi_uart_init();
+  APP_ERROR_CHECK(err_code);
 
   // Make sure the robot is stopped.
   romi_drive_direct(0, 0);
@@ -222,4 +277,3 @@ int32_t romi_sensor_poll(KobukiSensors_t* const	sensors) {
 
 	return status;
 }
-
