@@ -10,10 +10,12 @@
 // To define APP_ERROR_CHECK, a macro that flashes the lights on a robot when
 // something goes wrong.
 #include "app_error.h"
+#include "nrfx_uart.h"
 
 // KobokiSensor_t is defined in the following file.
 #include "kobukiSensorTypes.h"
 
+extern nrfx_uart_t nrfx_uart;
 /**
  * @brief Set the speed of the left and right wheels.
  * The speed is in units of mm/s.
