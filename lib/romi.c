@@ -14,8 +14,6 @@
  * Jeff C. Jensen, Joshua Adkins, and Neal Jackson.
  */
 #include "lib/romi.h"
-#include "kobukiSensor.h"
-#include "kobukiSensorTypes.h"
 #include "buckler.h"
 #include <math.h>
 #include <string.h> // Defines memcpy
@@ -42,6 +40,16 @@ static nrfx_uart_t nrfx_uart = NRFX_UART_INSTANCE(0);
 static nrfx_uart_config_t nrfx_uart_cfg = NRFX_UART_DEFAULT_CONFIG;
 
 /**
+ * @brief Combine bytes into a 16 bit unsigned integer.
+ * @param low Low-order byte.
+ * @param high High-order byte.
+ * @return The combined bytes. 
+ */
+static uint16_t to_uint16( uint8_t low, uint16_t high){
+    return ( (uint16_t) high << 8) | low ;
+}
+
+/**
  * @brief Calculate and return a checksum for the specified buffer.
  * This is based on checkSum() in the buckler repo.
  * 
@@ -49,7 +57,7 @@ static nrfx_uart_config_t nrfx_uart_cfg = NRFX_UART_DEFAULT_CONFIG;
  * @param length The length of the buffer.
  * @return The XOR of the bytes in the buffer. 
  */
-uint8_t _romi_checksum(uint8_t* buffer, int length) {
+static uint8_t _romi_checksum(uint8_t* buffer, int length) {
     uint8_t cs = 0x00;
     // printf("\n l = %d \n",length);
     for(int i = 2; i < length; i++ ) {
@@ -107,7 +115,7 @@ static int32_t _romi_drive_radius(int16_t radius, int16_t speed){
  * @brief Initialize the UART to a baud rate of 115,200.
  * @return An error code that should be checked using the macro APP_ERROR_CHECK.
  */
-int32_t _romi_uart_init() {
+static int32_t _romi_uart_init() {
   nrfx_uart_cfg.pseltxd            = BUCKLER_UART_TX;
   nrfx_uart_cfg.pselrxd            = BUCKLER_UART_RX;
   nrfx_uart_cfg.parity             = NRF_UART_PARITY_EXCLUDED;
@@ -128,7 +136,7 @@ int32_t _romi_uart_init() {
  * @param len The length of the buffer.
  * @return int32_t 
  */
-int32_t _romi_read_serial(uint8_t* packetBuffer, uint8_t len){
+static int32_t _romi_read_serial(uint8_t* packetBuffer, uint8_t len){
   // States of the state machine depending on what is read next.
   // Header should start with AA55.
   typedef enum {
@@ -231,8 +239,92 @@ int32_t _romi_read_serial(uint8_t* packetBuffer, uint8_t len){
   return ret;
 }
 
+/**
+ * @brief Parse the sensor data sent over the UART by the robot.
+ * This is based on kobukiParseSensorPacket in kobukiSensors.c in the buckler repo.
+ * 
+ * @param packet The raw sensor data.
+ * @param sensors The struct into which to insert the data.
+ */
+static void _romi_parse_sensor_packet(const uint8_t * packet, romi_sensors_t * sensors) {
+	uint8_t payload_length = packet[2];
+	uint8_t subpayload_length = 0;
+
+	uint8_t i = 3;
+	while( i < payload_length + 3) {
+
+		uint8_t id = packet[i];
+
+		subpayload_length = packet[i+1];
+
+		switch(id) {
+			case 0x01 :
+				// There's an ambiguity in the documentation where
+				// it says there are two headers with value 0x01:
+				// basic sensor data and controller info - although it
+				// says elsewhere that controller info has ID 0x15
+				// so we'll just check here to make sure it's the right length
+
+				if( subpayload_length == 0x0F){
+                    sensors->time_stamp = to_uint16( packet[i+2], packet[i+3]);
+
+					sensors->bumps.right	=	packet[i+4] & 0x01;
+					sensors->bumps.center	=	(packet[i+4] & 0x02);
+					sensors->bumps.left		=	(packet[i+4] & 0x04);
+
+					sensors->reflectance.right		=	(packet[i+6] & 0x01);
+					sensors->reflectance.center 	=	(packet[i+6] & 0x02);
+					sensors->reflectance.left		=	(packet[i+6] & 0x04);
+
+					sensors->encoders.left	= to_uint16(packet[i+7], packet[i+8]);
+					sensors->encoders.right = to_uint16(packet[i+9], packet[i+10]);
+
+					sensors->buttons.right		=	(bool)(packet[i+13] & 0x01);
+					sensors->buttons.left		=	(bool)(packet[i+13] & 0x02);
+
+					i += subpayload_length + 2; // + 2 for header and length
+				} else {
+					i += payload_length + 3; // add enough to terminate the outer while loop
+				}
+
+				break;
+
+			default :
+				printf("Unexpected message type over UART: %d", id);
+				break;
+
+		}
+	}
+	// Checksum has already been checked.
+	return;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////
 //// Public functions. Documented in romi.h. Intended to be called by users.
+
+bool romi_button_pressed(romi_sensors_t* const sensors) {
+  // save previous states of buttons
+  static bool previous_left = false;
+  static bool previous_right = false;
+
+  bool result = false;
+
+  // Check left button.
+  bool current_left = sensors->buttons.left;
+  if (current_left && previous_left != current_left) {
+    result = true;
+  }
+  previous_left = current_left;
+
+  // check right
+  bool current_right = sensors->buttons.right;
+  if (current_right && previous_right != current_right) {
+    result = true;
+  }
+  previous_right = current_right;
+
+  return result;
+}
 
 // Based on kobukiDriveDirect from the buckler repo, but with a number of fixes.
 int32_t romi_drive_direct(int16_t left_wheel_speed, int16_t right_wheel_speed) {
@@ -298,7 +390,7 @@ uint32_t romi_init() {
   return err_code;
 }
 
-int32_t romi_sensor_poll(KobukiSensors_t* const    sensors) {
+int32_t romi_sensors_poll(romi_sensors_t* const sensors) {
     // initialize communications buffer
     // We know that the maximum size of the packet is less than 140 based on documentation
     uint8_t packet[140] = {0};
@@ -308,7 +400,7 @@ int32_t romi_sensor_poll(KobukiSensors_t* const    sensors) {
     }
 
     // parse response
-    kobukiParseSensorPacket(packet, sensors);
+    _romi_parse_sensor_packet(packet, sensors);
 
     return status;
 }

@@ -5,63 +5,32 @@ target C {
 
 preamble {=
     #include "lib/romi.h"
-    #include "nrf_delay.h"
-#include "nrf_log.h"
-#include "nrf_log_ctrl.h"
-#include "nrf_log_default_backends.h"
 =}
 
 main reactor {
     timer t(0, 100 msec);
     reaction(startup) {=
-        ret_code_t error_code = NRF_SUCCESS;
-
-        // initialize RTT library
-        error_code = NRF_LOG_INIT(NULL);
-        APP_ERROR_CHECK(error_code);
-        NRF_LOG_DEFAULT_BACKENDS_INIT();
-        printf("Log initialized!\n");
-        
         // Initialize the robot.
         APP_ERROR_CHECK(romi_init());
     =}
     reaction(t) {=
-        KobukiSensors_t sensor_cache;
-        APP_ERROR_CHECK(romi_sensor_poll(&sensor_cache));
+        romi_sensors_t sensors;
+        APP_ERROR_CHECK(romi_sensors_poll(&sensors));
         // print results
         printf("\n");
-        printf("### Kobuki Sensor Values ###\n");
-        printf("Wheel drop left:\t%d\n", sensor_cache.bumps_wheelDrops.wheeldropLeft);
-        printf("Wheel drop right:\t%d\n", sensor_cache.bumps_wheelDrops.wheeldropRight);
+        printf("### Romi Sensor Values at index %d ###\n", sensors.time_stamp);
+        printf("Bump left:\t%d\n", sensors.bumps.left);
+        printf("Bump center:\t%d\n", sensors.bumps.center);
+        printf("Bump right:\t%d\n", sensors.bumps.right);
         printf("\n");
-        printf("Bump left:\t%d\n", sensor_cache.bumps_wheelDrops.bumpLeft);
-        printf("Bump center:\t%d\n", sensor_cache.bumps_wheelDrops.bumpCenter);
-        printf("Bump right:\t%d\n", sensor_cache.bumps_wheelDrops.bumpRight);
+        printf("Reflectance left:\t%d\n", sensors.reflectance.left);
+        printf("Reflectance center:\t%d\n", sensors.reflectance.center);
+        printf("Reflectance right:\t%d\n", sensors.reflectance.right);
         printf("\n");
-        printf("Cliff left:\t%d\n", sensor_cache.cliffLeft);
-        printf("Cliff center:\t%d\n", sensor_cache.cliffCenter);
-        printf("Cliff right:\t%d\n", sensor_cache.cliffRight);
+        printf("Button left:\t%d\n", sensors.buttons.left);
+        printf("Button right:\t%d\n", sensors.buttons.right);
         printf("\n");
-        printf("Button 0:\t%d\n", sensor_cache.buttons.B0);
-        printf("Button 1:\t%d\n", sensor_cache.buttons.B1);
-        printf("Button 2:\t%d\n", sensor_cache.buttons.B2);
-        printf("\n");
-        printf("Encoder left:\t%d\n", sensor_cache.leftWheelEncoder);
-        printf("Encoder right\t%d\n", sensor_cache.rightWheelEncoder);
-        printf("\n");
-        printf("Current left:\t%d\n", sensor_cache.leftWheelCurrent);
-        printf("Current right\t%d\n", sensor_cache.rightWheelCurrent);
-        printf("\n");
-        printf("PWM left:\t%d\n", sensor_cache.leftWheelPWM);
-        printf("PWM right\t%d\n", sensor_cache.rightWheelPWM);
-        printf("\n");
-        printf("Over current left:\t%d\n", sensor_cache.leftWheelOverCurrent);
-        printf("Over current right\t%d\n", sensor_cache.rightWheelOverCurrent);
-        printf("\n");
-        printf("Battery voltage:\t%d\n", sensor_cache.batteryVoltage);
-        printf("Charging state:\t%d\n", sensor_cache.chargingState);
-        printf("\n");
-        printf("Angle:\t%d\n", sensor_cache.angle);
-        printf("Rate:\t%d\n", sensor_cache.angleRate);
+        printf("Encoder left:\t%d\n", sensors.encoders.left);
+        printf("Encoder right\t%d\n", sensors.encoders.right);
     =}
 }
