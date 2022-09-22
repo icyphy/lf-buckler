@@ -13,11 +13,11 @@
  * Jeff C. Jensen, Joshua Adkins, and Neal Jackson.
  */
 #include "lib/romi.h"
-#include "kobukiActuator.h"
 #include "kobukiSensor.h"
 #include "kobukiSensorTypes.h"
 #include "kobukiUtilities.h"  // Defines kobukiUARTInit(). 
 #include "buckler.h"
+#include <math.h>
 
 // nRF library files.
 #include "nrf_drv_clock.h"  // Defines nrf_drv_clock_init() and nrf_drv_clock_lfclk_request().
@@ -33,10 +33,68 @@
 ///////////////////////////////////////////////////////////////////////////////////////
 //// Private functions. Not documented in romi.h. Used in public functions below.
 
-
 // UART implementation
-nrfx_uart_t nrfx_uart = NRFX_UART_INSTANCE(0);
+static nrfx_uart_t nrfx_uart = NRFX_UART_INSTANCE(0);
 static nrfx_uart_config_t nrfx_uart_cfg = NRFX_UART_DEFAULT_CONFIG;
+
+// Copied from KobukiSendPayload
+// FIXME: Clean
+static int32_t _romi_send_payload(uint8_t* payload, uint8_t len) {
+    uint8_t writeData[256] = {0};
+
+    // Write move payload
+    writeData[0] = 0xAA;
+    writeData[1] = 0x55;
+    writeData[2] = len;
+    memcpy(writeData + 3, payload, len);
+	writeData[3+len] = checkSum(writeData, 3 + len);
+
+    nrfx_err_t err = nrfx_uart_tx(&nrfx_uart, writeData, len + 4); 
+    return err; 
+}
+// Copied from kobukiDriveRadius
+static int32_t _romi_drive_radius(int16_t radius, int16_t speed){
+    uint8_t payload[6];
+    payload[0] = 0x01;
+    payload[1] = 0x04;
+    memcpy(payload+2, &speed, 2);
+    memcpy(payload+4, &radius, 2);
+
+    return _romi_send_payload(payload, 6);
+}
+
+// copier from kobukuDriveDirect
+static int32_t _romi_drive_direct(int16_t leftWheelSpeed, int16_t rightWheelSpeed){
+	int32_t CmdSpeed;
+	int32_t CmdRadius;
+
+	if (abs(rightWheelSpeed) > abs(leftWheelSpeed)) {
+	    CmdSpeed = rightWheelSpeed;
+	} else {
+	    CmdSpeed = leftWheelSpeed;
+	}
+
+	if (rightWheelSpeed == leftWheelSpeed) {
+	    CmdRadius = 0;  // Special case 0 commands Kobuki travel with infinite radius.
+	} else {
+	    CmdRadius = (rightWheelSpeed + leftWheelSpeed) / (2.0 * (rightWheelSpeed - leftWheelSpeed) / 123.0);  // The value 123 was determined experimentally to work, and is approximately 1/2 the wheelbase in mm.
+	    CmdRadius = round(CmdRadius);
+	    //if the above statement overflows a signed 16 bit value, set CmdRadius=0 for infinite radius.
+	    if (CmdRadius>32767) CmdRadius=0;
+	    if (CmdRadius<-32768) CmdRadius=0;
+	    if (CmdRadius==0) CmdRadius=1;  // Avoid special case 0 unless want infinite radius.
+	}
+
+	if (CmdRadius == 1){
+		CmdSpeed = CmdSpeed * -1;
+	}
+
+	int32_t status = _romi_drive_radius(CmdRadius, CmdSpeed);
+
+
+	return status;
+}
+
 
 int romi_uart_init() {
   nrfx_uart_cfg.pseltxd            = BUCKLER_UART_TX;
@@ -179,7 +237,7 @@ int32_t romi_drive_direct(int16_t left_wheel_speed, int16_t right_wheel_speed) {
     int32_t status = 0;
 
     // FIXME: The following function has a number of problems. Reimplement here.
-    status = kobukiDriveDirect(left_wheel_speed, right_wheel_speed);
+    status = _romi_drive_direct(left_wheel_speed, right_wheel_speed);
 
     return status;
 }
@@ -219,4 +277,3 @@ int32_t romi_sensor_poll(KobukiSensors_t* const	sensors) {
 
 	return status;
 }
-
