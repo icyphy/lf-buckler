@@ -11,9 +11,21 @@ target C {
 
 import Display from "lib/Display.lf";
 
+preamble {=
+    // Include the functions for driving the robot
+    // and reading its sensors.
+    #include "lib/romi.h"
+=}
+
 reactor Robot {
     input drive:bool;       // Toggle mode.
     output notify:string;   // Notify of mode change.
+
+    reaction(startup) -> notify {=
+        // Initialize the robot.
+        APP_ERROR_CHECK(romi_init());
+        lf_set(notify, "INIT");
+    =}
 
     initial mode STOPPED {
         reaction(drive) -> DRIVING, notify {=
