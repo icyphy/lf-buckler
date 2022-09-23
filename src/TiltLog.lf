@@ -1,0 +1,49 @@
+/**
+* Display tilt angles of accelerometer
+* and time on screen and printf
+* @author Abhi Gundrala
+*/
+target C {
+    threading: false,
+};
+
+import Tilt from "lib/Tilt.lf"
+import Display from "lib/Display.lf"
+
+preamble {=
+    #include <stdio.h>
+
+=}
+
+main reactor {
+
+    theta = new Tilt();
+    dx = new Display(row = 0);
+    dy = new Display(row = 1);
+
+    timer t(0, 250 msec);
+    state i:int(0);
+
+    reaction(t) -> theta.trigger {=
+        static char x[BUCKLER_DISPLAY_WIDTH + 1];
+        self->i++;
+        snprintf(x, BUCKLER_DISPLAY_WIDTH + 1, "i:%d", self->i);
+        printf("xz:%f yz:%f", theta.xz->value, theta.yz->value);
+
+        lf_set(theta.trigger, true);
+        lf_set(dx.message, x);
+    =}
+
+    reaction(theta.xz, theta.yz) -> dx.message {=
+        static char x[BUCKLER_DISPLAY_WIDTH + 1];
+        snprintf(x, BUCKLER_DISPLAY_WIDTH + 1, "xz:%f yz:%f", theta.xz->value, theta.yz->value);
+        printf("xz:%f yz:%f", theta.xz->value, theta.yz->value);
+
+        lf_set(dy.message, x);
+    =}
+
+
+
+
+
+}
