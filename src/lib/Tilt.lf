@@ -1,7 +1,5 @@
 target C;
 
-import Accelerometer from "Accelerometer.lf"
-
 preamble {=
 	//preamble
     #include <math.h>
@@ -9,32 +7,29 @@ preamble {=
 
 /**
 * Reactor that calculates and returns the tilt angles in the xz and yz
-* directions. Uses the analog accelerometer on the Buckler board.
+* directions. The reactor takes acceleration input in gs in each direction.
 */
 
 reactor Tilt {
-    input trigger:bool;
+    input x:float;
+	input y:float;
+	input z:float;
+
 	output xz:float;
 	output yz:float;
+	
+	reaction(x, y, z) -> xz, yz {=
+        float ax, ay, az;
+		if (z->is_present &&
+            x->is_present &&
+            y->is_present) {
+			
+			ax = x->value;
+			ay = y->value;
+			az = z->value;
 
-    state accel_rest:int16_t[](0, 0, 0) // [x,y,z]
-
-	accel = new Accelerometer();
-	trigger -> accel.trigger;
-
-	reaction(accel.x, accel.y, accel.z) -> xz, yz {=
-	    float ax, ay, az;
-        if (accel.z.is_present &&
-            accel.x.is_present &&
-            accel.y.is_present) {
-
-			az = (float)(accel.z.value - accel_rest[2]);
-			ax = (float)(accel.x.value = accel_rest[0];
-	        ay = (float)(accel.y.value - accel_rest[1]);
-
-            lf_set(xz, atan(ax**2/sqrt(ay**2 + az**2)))
-            lf_set(yz, atan(ay**2/sqrt(ax**2 + az**2)))
-        }
+            lf_set(xz, atanf(ax/sqrt(ay*ay + az*az)) * 180 / M_PI);
+            lf_set(yz, atanf(ay/sqrt(ax*ax + az*az)) * 180 / M_PI);
+		}
 	=}
-
 }

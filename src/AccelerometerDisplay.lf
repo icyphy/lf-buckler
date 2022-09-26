@@ -29,12 +29,12 @@ main reactor {
     =}
     reaction(a.x, a.z) -> dx.message {=
         static char x[BUCKLER_DISPLAY_WIDTH + 1];
-        snprintf(x, BUCKLER_DISPLAY_WIDTH + 1, "x:%d z:%d", a.x->value, a.z->value);
+        snprintf(x, BUCKLER_DISPLAY_WIDTH + 1, "x:%.2f z:%.2f", a.x->value, a.z->value);
         lf_set(dx.message, x);
     =}
     reaction(a.y) -> dy.message {=
         static char y[BUCKLER_DISPLAY_WIDTH + 1];
-        snprintf(y, BUCKLER_DISPLAY_WIDTH + 1, "y:%d t:%d", a.y->value, (self->count++)/4);
+        snprintf(y, BUCKLER_DISPLAY_WIDTH + 1, "y:%.2f t:%d", a.y->value, (self->count++)/4);
         lf_set(dy.message, y);
     =}
 }
