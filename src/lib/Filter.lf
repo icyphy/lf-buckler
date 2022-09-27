@@ -1,0 +1,40 @@
+target C {
+    threading: false,
+    build: "../scripts/builf_nrf_unix.sh"
+};
+
+preamble {=
+    // preamble
+    #include "lib/filter.h"
+=}
+
+/**
+ * Implement an arbitrary fir causal filter using
+ * the defined impulse response and a dynamic sized delay line
+ */
+reactor FIRFilter(h:float[](1.0), size:int(1)) {
+    input in:float;
+    output out:float;
+
+    state buffer:delay_line_t(0, 0, 0);
+    
+    reaction(startup) {=
+        // initialize buffer
+        self->buffer.size = self->size;
+        create_line(&(self->buffer));
+    =}
+
+    reaction(in) -> out {=
+        float xt;
+        float sum = 0;
+        // append new value onto buffer
+        push(&(self->buffer), in->value);
+        // perform convolution
+        for (int i = 0; i < self->size; i++) {
+            // get the ith value before current
+            get(&(self->buffer), i, &xt);
+            sum += self->h[i] * xt;
+        }
+        lf_set(out, sum);
+    =}
+}
