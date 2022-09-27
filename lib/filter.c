@@ -1,8 +1,7 @@
 /**
- * dynamic size implementation of delay line
- * for signal processing applications.
- * Uses a software circular buffer as storage backend
+ * @file filter.c
  * @author Abhi Gundrala
+ * @brief Implementation of various filtering utilities for use in LF Labs.
  */
 
 #include "filter.h"

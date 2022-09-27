@@ -10,7 +10,7 @@ preamble {=
 
 /**
  * Implement an arbitrary fir causal filter using
- * the defined impulse response and a dynamic sized delay line
+ * the defined impulse response of a fixed size.
  */
 reactor FIRFilter(h:float[](1.0), size:int(1)) {
     input in:float;
