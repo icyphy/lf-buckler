@@ -8,33 +8,67 @@ preamble {=
     #include "lib/filter.h"
 =}
 
+reactor Filter {
+    input in:float;
+    output out:float;
+}
+
+reactor UnityFilter extends Filter {
+    in -> out;
+}
+
 /**
  * Implement an arbitrary fir causal filter using
  * the defined impulse response of a fixed size.
  */
-reactor FIRFilter(h:float[](1.0), size:int(1)) {
-    input in:float;
-    output out:float;
-
+reactor FIRFilter(h:float[](1.0), size:int(1)) extends Filter {
+    // buffer storage
     state buffer:delay_line_t(0, 0, 0);
     
     reaction(startup) {=
         // initialize buffer
-        self->buffer.size = self->size;
-        create_line(&(self->buffer));
+        create_line(&(self->buffer), self->size);
     =}
+    
+    reaction(in) -> out {=
+        float sum;
+        // push new value onto buffer
+        push(&(self->buffer), in->value);
+        // apply filter
+        sum = fir_filter(&(self->buffer), self->h, self->buffer.len);
+        lf_set(out, sum);
+    =}
+}
+
+reactor AvgFilter(size:int(1)) extends Filter {
+    // buffer storage
+    state buffer:delay_line_t;
+    
+    reaction(startup) {=
+        // initialize buffer
+        create_line(&(self->buffer), self->size);
+    =}
+    
+    reaction(in) -> out {=
+        // sum line
+        float sum;
+        push(&(self->buffer), in->value);
+        sum = sum_line(&(self->buffer));
+        // set out
+        lf_set(out, sum / self->size);
+    =}
+}
+
+reactor ExpFilter(b:float(1)) extends Filter {
+    // last out value y_(n-1)
+    state prev:float(0.0);
 
     reaction(in) -> out {=
-        float xt;
-        float sum = 0;
-        // append new value onto buffer
-        push(&(self->buffer), in->value);
-        // perform convolution
-        for (int i = 0; i < self->size; i++) {
-            // get the ith value before current
-            get(&(self->buffer), i, &xt);
-            sum += self->h[i] * xt;
-        }
-        lf_set(out, sum);
+        float next;
+        // calulate y_n        
+        next = self->b * in->value + (1 - self->b) * self->prev;
+        // update prev
+        self->prev = next;
+        lf_set(out, self->prev);
     =}
 }

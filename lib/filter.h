@@ -24,6 +24,8 @@ typedef struct {
 
 /** Functions **/
 
+// Delay Line
+
 /**
  * @brief Allocate memory for a delay line of the specified length,
  * and initialize the `line` argument to refer to the allocated delay line.
@@ -62,5 +64,26 @@ int push(delay_line_t *line, float x);
  * @return -1 if `n` is out of range.
  */
 int get(delay_line_t *line, size_t n, float *x);
+
+/**
+ * Sum all elements in the delay line and return.
+ * @param line Pointer to delay line
+ * @return sum
+ */
+float sum_line(delay_line_t *line);
+
+// Filters
+
+/**
+ * Apply difference equation y[n] = sum(b[i] * x[i])
+ * Zero pad filter if line size > filter size, 
+ * otherwise omit b[j] for j > line size.
+ * 
+ * @param line Pointer to delay line
+ * @param b Pointer to b coefficent buffer
+ * @param b_size Size of b buffer
+ */
+float fir_filter(delay_line_t *line, float *b, size_t b_size);
+
 
 #endif

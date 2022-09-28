@@ -11,36 +11,42 @@ target C {
 import IMU from "lib/IMU.lf"
 import Tilt from "lib/Tilt.lf"
 import Display from "lib/Display.lf"
-import FIRFilter from "lib/Filter.lf"
+import ExpFilter, AvgFilter, FIRFilter from "lib/Filter.lf"
 
 preamble {=
     #include <stdio.h>
 =}
 
 main reactor {
-
     // sensors
     imu = new IMU();
     tilt = new Tilt();
-
-    // filters
-    avg_1 = new FIRFilter(h = (0.25, 0.25, 0.25, 0.25), size = 4);
-    avg_2 = new FIRFilter(h = (0.33, 0.33, 0.33), size = 3);
 
     // displays
     dx = new Display(row = 0);
     dy = new Display(row = 1);
 
+    // filters
+    //unit_1 = new UnityFilter();
+    fir_1 = new FIRFilter(h = (0.4, 0.3, 0.2, 0.1), size = 4);
+    avg_1 = new ExpFilter(b = 0.6);
+    avg_2 = new AvgFilter(size = 3);
+
     timer t(0, 250 msec);
     state i:int(0);
-    tilt.xz -> avg_1.in;
+
+    tilt.xz -> fir_1.in;
+    fir_1.out -> avg_1.in;
     tilt.yz -> avg_2.in;
+
+    reaction(startup) {=
+        printf("startup");
+    =}
 
     reaction(t) -> imu.trigger, dx.message {=
         // construct and display t message
         static char x[BUCKLER_DISPLAY_WIDTH + 1];
         snprintf(x, BUCKLER_DISPLAY_WIDTH + 1, "i:%d", self->i++);
-        printf("t:%d", self->i);
         lf_set(dx.message, x);
 
         // trigger imu
@@ -59,7 +65,6 @@ main reactor {
         // construct and display filtered tilt
         static char x[BUCKLER_DISPLAY_WIDTH + 1];
         snprintf(x, BUCKLER_DISPLAY_WIDTH + 1, "xz:%.2f yz:%.2f", avg_1.out->value, avg_2.out->value);
-        printf("xz:%f yz:%f\n", avg_1.out->value, avg_2.out->value);
         lf_set(dy.message, x);
     =}
 
