@@ -38,11 +38,10 @@ typedef struct
 /**
  * @brief Reflectance, which is 0 for light color, 1 for dark color.
  */
-typedef struct
-{
-    bool left;
-    bool center;
-    bool right;
+typedef struct {
+    bool left;     // Left two sensors.
+    bool center;   // Middle four sensors.
+    bool right;    // Right two sensors.
 } romi_reflectance_t;
 
 /**
