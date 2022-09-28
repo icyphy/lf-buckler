@@ -20,6 +20,25 @@ preamble {=
     #define Y_CHANNEL 1
     #define Z_CHANNEL 2
     
+    /**
+     * NRF ADC Constants
+     * gain is 1/6 and scales the input voltage. 
+     * internal reference voltage is 0.6; the voltage range is 0-0.6
+     * effective range before gain is 3.6
+     * adc resolution is 12 bits; 2^12 = 4096 
+     */
+     #define FSR 3.6
+     #define LSB FSR / 4096
+
+    /**
+     * ADXL327 Constants
+     * bias and sensativity are ratiometric
+     * they are proportional to the supply voltage which might be less than 3V
+     */
+    #define VSS 2.98
+    #define ADXL327_BIAS 1.5 * (VSS / 3.0)
+    #define ADXL327_SENS 0.42 * (VSS / 3.0)
+
     // callback for SAADC events
     void saadc_callback (nrfx_saadc_evt_t const * p_event) {
         // Ignore ADC callbacks.
@@ -35,17 +54,18 @@ preamble {=
     
     // Global variable to prevent initializing more than once.
     bool buckler_accelerometer_initialized = false;
+
 =}
 
 /**
- * Reactor that, when triggered, outputs the x, y, and z axis readings
+ * Reactor that, when triggered, outputs the x, y, and z axis readings in gs
  * of the analog accelerometer on the Buckler board.
  */
 reactor Accelerometer(row:int(0)) {
     input trigger:bool;
-    output x:nrf_saadc_value_t;
-    output y:nrf_saadc_value_t;
-    output z:nrf_saadc_value_t;
+    output x:float;
+    output y:float;
+    output z:float;
     
     reaction(startup) {=
         if (buckler_accelerometer_initialized) return;
@@ -60,8 +80,8 @@ reactor Accelerometer(row:int(0)) {
         // initialize analog inputs
         // configure with 0 as input pin for now
         nrf_saadc_channel_config_t channel_config = NRFX_SAADC_DEFAULT_CHANNEL_CONFIG_SE(0);
-        channel_config.gain = NRF_SAADC_GAIN1_6; // input gain of 1/6 Volts/Volt, multiply incoming signal by (1/6)
-        channel_config.reference = NRF_SAADC_REFERENCE_INTERNAL; // 0.6 Volt reference, input after gain can be 0 to 0.6 Volts
+        channel_config.gain = NRF_SAADC_GAIN1_6;
+        channel_config.reference = NRF_SAADC_REFERENCE_INTERNAL;
     
         // specify input pin and initialize that ADC channel
         channel_config.pin_p = BUCKLER_ANALOG_ACCEL_X;
@@ -79,11 +99,16 @@ reactor Accelerometer(row:int(0)) {
         APP_ERROR_CHECK(error_code);
     =}
     reaction(trigger) -> x, y, z {=
+        nrf_saadc_value_t x_raw, y_raw, z_raw;
         if (trigger->value) {
             // Sample analog inputs.
-            lf_set(x, sample_value(X_CHANNEL));
-            lf_set(y, sample_value(Y_CHANNEL));
-            lf_set(z, sample_value(Z_CHANNEL));
+            x_raw = sample_value(X_CHANNEL);
+            y_raw = sample_value(Y_CHANNEL);
+            z_raw = sample_value(Z_CHANNEL);
+            
+            lf_set(x, ((x_raw * LSB) - ADXL327_BIAS) / ADXL327_SENS);
+            lf_set(y, ((y_raw * LSB) - ADXL327_BIAS) / ADXL327_SENS);
+            lf_set(z, ((z_raw * LSB) - ADXL327_BIAS) / ADXL327_SENS);
         }
     =}
 }

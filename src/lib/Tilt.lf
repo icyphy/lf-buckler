@@ -1,0 +1,32 @@
+target C;
+
+preamble {=
+	//preamble
+    #include <math.h>
+=}
+
+/**
+* Given x, y, and z accelerometer readings in g's, output the tilt in the x and y directions.
+* The outputs are in radians will be in the range of -PI/2 to PI/2.
+*/
+reactor Tilt {
+    input x:float;
+	input y:float;
+	input z:float;
+
+	output xz:float;
+	output yz:float;
+	
+	reaction(x, y, z) -> xz, yz {=
+        float ax, ay, az;
+		if (z->is_present && x->is_present && y->is_present) {
+			// extract values
+		    ax = x->value;
+			ay = y->value;
+			az = z->value;
+			// calculate tilt angles
+            lf_set(xz, atanf(ax/sqrt(ay*ay + az*az)));
+            lf_set(yz, atanf(ay/sqrt(ax*ax + az*az)));
+		}
+	=}
+}
