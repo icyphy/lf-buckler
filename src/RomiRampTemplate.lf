@@ -1,0 +1,96 @@
+/**
+ * Template for robot driving lab exercise 8 TODO
+ * This template is for the hill climbing robot. The robot has a series of tasks,
+ * related to navigating up and down the ramp.
+ */
+ target C {
+    threading: false,
+    build: "../scripts/build_nrf_unix.sh"   
+};
+
+import Display from "lib/Display.lf";
+import ExpFilter from "lib/Filter.lf"
+import AccTilt from "lib/Tilt.lf";
+import TankDrive, RomiBools from "lib/Romi.lf";
+
+preamble {=
+    #include "lib/romi.h"
+    #include "lib/filter.h"
+    #include <math.h>
+
+=}
+
+
+reactor Robot {
+
+    input drive:bool;       // Toggle between stopped and active modes
+    
+    input cliff:int;        // Reflectance Dark: -1 left, 0 center, 1 right
+    
+    input roll:float;    // tilt in rads about x direction 
+    input pitch:float;    // tilt in rads about y direction
+    
+    output notify:string;   // Notify of mode change.
+    output tilt_poll:bool;
+
+    output lpwr:int16_t;
+    output rpwr:int16_t;
+
+    reaction(startup) -> notify {=
+        // Initialize the robot.
+        lf_set(notify, "INIT");
+    =}
+
+    initial mode STOPPED {
+        reaction(startup) -> lpwr, rpwr {=
+            lf_set(lpwr, 0);
+            lf_set(rpwr, 0);
+        =}
+        reaction(drive) -> notify {=
+            lf_set_mode(DRIVING);
+            lf_set(notify, "DRIVING");
+        =}
+    }
+
+}
+
+main reactor {
+    timer t(0, 100 msec);
+
+    // Sensors
+    tilt = new AccTilt();
+    sensors = new RomiBools();
+
+    // Controller
+    robot = new Robot();
+
+    // Outputs
+    display = new Display(row = 0);
+    display2 = new Display(row = 1);
+    drive = new TankDrive();
+
+    // Filters
+    filter = new ExpFilter(b = 0.6);
+
+    // Tilt
+    tilt.roll -> robot.roll;
+    tilt.pitch -> robot.pitch;
+    robot.tilt_poll -> tilt.trigger;
+
+    // Cliff
+    sensors.cliff_dir -> robot.cliff;
+
+    // Button
+    sensors.btn -> robot.drive;
+
+    // Drive
+    robot.lpwr -> drive.lpwr;
+    robot.rpwr -> drive.rpwr;
+    
+    // State display
+    robot.notify -> display.message;
+    
+    reaction(t) -> sensors.trigger {=
+        lf_set(sensors.trigger, true);
+    =}
+}
