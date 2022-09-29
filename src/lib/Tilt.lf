@@ -1,9 +1,16 @@
-target C;
+target C {
+	threading: false,
+    build: "../scripts/build_nrf_unix.sh",
+}
+
+import IMU from "IMU.lf"
+import Accelerometer from "Accelerometer.lf"
 
 preamble {=
 	//preamble
     #include <math.h>
 =}
+
 
 /**
 * Given x, y, and z accelerometer readings in g's, output the tilt in the x and y directions.
@@ -29,4 +36,47 @@ reactor Tilt {
             lf_set(yz, atanf(ay/sqrt(ax*ax + az*az)));
 		}
 	=}
+}
+
+reactor IMUTilt {
+	input trigger:bool;
+
+	output xz:float;
+	output yz:float;
+	
+	// sensors
+	imu = new IMU();
+	tilt = new Tilt();
+
+	trigger -> imu.trigger;
+	tilt.xz -> xz;
+	tilt.yz -> yz;
+
+	reaction(imu.acc) -> tilt.x, tilt.y, tilt.z {=
+        // unpack acc struct
+        // calculate tilt
+        lf_set(tilt.x, imu.acc->value.x_axis);
+        lf_set(tilt.y, imu.acc->value.y_axis);
+        lf_set(tilt.z, imu.acc->value.z_axis);
+    =}
+
+}
+
+reactor AccTilt {
+	input trigger:bool;
+
+	output roll:float;
+	output pitch:float;
+
+	acc = new Accelerometer();
+	tilt = new Tilt();
+
+	trigger -> acc.trigger;
+	
+	acc.x -> tilt.x;
+	acc.y -> tilt.y;
+	acc.z -> tilt.z;
+
+	tilt.xz -> roll;
+	tilt.yz -> pitch;
 }

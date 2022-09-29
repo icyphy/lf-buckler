@@ -1,0 +1,208 @@
+/**
+ * Solution for robot driving lab exercise 8 TODO
+ * This solution is the hill climbing robot. The robot has a series of tasks,
+ * related to navigating up and down the ramp.
+ *
+ * (a) Determine which way is up on the ramp.
+ * (b) Drive up the ramp and avoid cliffs.
+ * (c) Determine when you have reached the top of the ramp.
+ * (d) Drive down the ramp and avoid cliffs
+ */
+ target C {
+    threading: false,
+    build: "../scripts/build_nrf_unix.sh"   
+};
+
+import Display from "lib/Display.lf";
+import GyroAngle from "lib/GyroAngle.lf";
+import AvgFilter, SignFilter from "lib/Filter.lf";
+import AccTilt from "lib/Tilt.lf";
+import TankDrive, Encoder, RomiSensorArray from "lib/Romi.lf";
+import PController from "lib/Feedback.lf";
+import EncoderToDistance from "lib/EncoderToDistance_Template.lf";
+
+preamble {=
+    #include "lib/romi.h"
+    #include "lib/filter.h"
+    #include <math.h>
+
+    #define TILT_TOL 0.05
+    #define GAIN 0.1
+=}
+
+
+reactor Robot {
+
+    input drive:bool;       // Toggle between stopped and active modes
+    
+    input cliff:int;        // Reflectance Dark: -1 left, 0 center, 1 right
+    
+    input roll:float;    // tilt in rads about x direction 
+    input pitch:float;    // tilt in rads about y direction
+    
+    output notify:string;   // Notify of mode change.
+    output tilt_poll:bool;
+
+    output lpwr:int16_t;
+    output rpwr:int16_t;
+
+    roll_sign = new SignFilter();
+    roll -> roll_sign.in
+
+    reaction(startup) -> notify {=
+        // Initialize the robot.
+        APP_ERROR_CHECK(romi_init());
+        lf_set(notify, "INIT");
+    =}
+
+    initial mode STOPPED {
+        reaction(drive) -> reset(DRIVING), notify {=
+            lf_set_mode(DRIVING);
+            lf_set(notify, "DRIVING");
+        =}
+    }
+
+    mode DRIVING {
+        timer t(0, 50 msec);
+
+        feedback = new PController(gain = 50.0, bias = 75.0, set_point = 0.0);
+        pitch -> feedback.cur_value;
+        
+        // transition reactions
+        reaction(drive) -> STOPPED, notify {=                
+            lf_set_mode(STOPPED);
+            lf_set(notify, "STOPPED");
+        =}
+
+        reaction(cliff) -> reset(BACK_UP), notify {=
+            // edge is present.             
+            lf_set_mode(BACK_UP);
+            lf_set(notify, "BACK UP");
+        =}
+
+        reaction(t) -> tilt_poll{=
+            lf_set(tilt_poll);
+        =}
+
+        reaction(roll) -> reset(TOP) {=
+            if (fabs(roll->value) <= TILT_TOL) {
+                // stop at top
+                APP_ERROR_CHECK(romi_drive_direct(0, 0));
+
+                lf_set_mode(TOP);
+                lf_set(notify, "TOP");
+            }
+        =}
+
+        reaction(feedback.control) roll_sign.out -> lpwr, rpwr {=
+            lf_set(lpwr, feedback.control * roll_sign.out);
+            lf_set(rpwr, -feedback.control * roll_sign.out);
+        =}
+    }
+
+    mode TOP {
+        gyro = new GyroAngle();
+        reaction(startup) -> lpwr, rpwr {=
+            lf_set(lpwr, -50);
+            lf_set(rpwr, 50);
+        =}
+        reaction(gyro.z) -> reset(DRIVING), notify {=
+            if (gyro.z->value >= 85) {
+
+                lf_set_mode(DRIVING);
+                lf_set(notify, "DRIVING");
+            }
+        =}
+        reaction(drive) -> reset(STOPPED), notify {=
+            APP_ERROR_CHECK(romi_drive_direct(0, 0));
+
+            lf_set_mode(STOPPED);
+            lf_set(notify, "STOPPED");        
+        =}
+    }
+    mode BACK_UP {
+
+        encoder = new Encoder();
+        etod = new EncoderToDistance();
+        encoder.left -> etod.encoder;
+        
+        reaction(startup) etod.distance, roll_sign.out -> lpwr, rpwr {=
+            // reset distance
+            // backup power
+            lf_set(lpwr, roll_sign.out->value * -60);
+            lf_set(rpwr, roll_sign.out->value * -60);
+        =}
+        reaction(etod.distance) cliff -> reset(AVOIDING), notify {=
+            if (distance->value - self->start_distance < -0.1f) {
+                // avoid
+                lf_set_mode(AVOIDING);
+                lf_set(notify, "AVOIDING");
+            }
+        =}
+        reaction(drive) -> reset(STOPPED), notify {=
+            // stop
+            lf_set_mode(STOPPED);
+            lf_set(notify, "STOPPED");
+        =}
+    }
+
+    mode AVOIDING {
+        gyro2 = new GyroAngle();
+        reaction(startup) roll_sign.out, cliff -> lpwr, rpwr {=
+            int dir = roll_sign.out->value * cliff->value;
+            lf_set(lpwr, dir * -50);
+            lf_set(rpwr, dir * 50);
+        =}
+        reaction(gyro2.z) -> reset(DRIVING), notify {=
+            if (gyro2.z->value >= 40 || gyro2.z->value <= -40) {
+                lf_set_mode(DRIVING);
+                lf_set(notify, "DRIVING");
+            }
+        =}
+        reaction(drive) -> reset(STOPPED), notify {=
+            lf_set_mode(STOPPED);
+            lf_set(notify, "STOPPED");
+        =}
+    }
+}
+
+main reactor {
+    timer t(0, 100 msec);
+
+    // Sensors
+    tilt = new AccTilt();
+    sensors = new RomiSensorArray();
+
+    // Controller
+    robot = new Robot();
+
+    // Outputs
+    display = new Display(row = 0);
+    display2 = new Display(row = 1);
+    drive = new TankDrive();
+
+    // Filters
+    filter = new AvgFilter(size = 5);
+
+    // Tilt
+    tilt.roll -> robot.roll;
+    tilt.pitch -> robot.pitch;
+    robot.tilt_poll -> tilt.trigger;
+
+    // Cliff
+    sensors.cliff_dir -> robot.cliff;
+
+    // Button
+    sensors.btn -> robot.drive;
+
+    // Drive
+    robot.lpwr -> drive.lpwr;
+    robot.rpwr -> drive.rpwr;
+    
+    // State display
+    robot.notify -> display.message;
+    
+    reaction(t) -> sensors.trigger {=
+        lf_set(sensors.trigger, true);
+    =}
+}

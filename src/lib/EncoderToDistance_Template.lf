@@ -10,15 +10,16 @@ reactor EncoderToDistance(
     output distance:float;    // Meters.
     
     reset state previous_encoder:uint16_t(0);
-    reset state previous_distance:float(0);
     reset state first:bool(true);   // Treat first encoder input specially.
     
     reaction (encoder) -> distance {=
+        int16_t diff;
         if (self->first) {
             // First encoder input, so distance should be zero.
             self->previous_encoder = encoder->value;
             self->first = false;
         }
-        // Your code goes here.
+        diff = (int16_t) encoder->value - self->previous_encoder;
+        lf_set(distance, diff * self->ticks_to_meters)
     =}
 }

@@ -1,0 +1,187 @@
+/**
+ * Button Module
+ * @brief When triggered, fires if either button on romi is pressed.
+ * @author Abhi Gundrala
+ */
+ target C {
+    threading: false,
+    build: "../scripts/build_nrf_unix.sh",
+};
+
+preamble {=
+    // Romi library.
+    #include "romi.h"
+    bool romi_initialized = false;
+
+    void scache_destructor(void* sensors) {
+        free((romi_sensors_t*) sensors);
+    }
+=}
+
+reactor RomiPart {
+    reaction(startup) {=
+        if(!romi_initialized) {
+            romi_init();
+            romi_initialized = true;
+        }
+    =}
+}
+
+reactor RomiSensor extends RomiPart {
+    input scache_in:romi_sensors_t*;
+    input trigger:bool;
+
+    output scache_out:romi_sensors_t*;
+    state psensors:romi_sensors_t*(0);
+
+    reaction(startup) -> scache_out {=
+        lf_set_destructor(scache_out, scache_destructor);
+    =}
+
+    reaction(scache_in) {=
+        self->psensors = &scache_in;
+    =}
+
+    reaction(trigger) -> scache_out {=
+        if(!self->psensors) {
+            self->psensors = (romi_sensors_t*) malloc(sizeof(romi_sensors_t));
+            // poll sensor
+            APP_ERROR_CHECK(romi_sensors_poll(self->psensors));
+            lf_set(scache_out, self->psensors);
+        }
+    =}
+}
+
+reactor Button extends RomiSensor {
+    output pressed:bool;
+
+    reaction(trigger) -> pressed {=
+        romi_sensors_t sensors;
+        // romi button check
+        romi_button_pressed(self->psensors);
+        if (romi_button_pressed(self->psensors)) {
+            lf_set(pressed, true);
+        }
+        self->psensors = 0;
+    =}
+
+
+}
+
+reactor Encoder extends RomiSensor {
+    output left:uint16_t;
+    output right:uint16_t;
+
+    reaction(trigger) -> left, right {=
+        // set encoder values
+        lf_set(left, psensors->encoders.left);
+        lf_set(right, psensors->encoders.left);
+        self->psensors = 0;
+    =}
+
+
+}
+
+reactor Bumper extends RomiSensor {
+    output all:bool;
+    output any:bool;
+    output dir:int;
+
+    reaction(trigger) -> all, any, dir {=
+        // left then center then right
+        if (self->psensors.reflectance.left) {
+            lf_set(dir, -1);
+        } else if (self->psensors.reflectance.center) {
+            lf_set(dir, 0);
+        } else if (self->psensors.reflectance.right) {
+            lf_set(dir, 1);
+        }
+        // or
+        lf_set(any, l || c || r);
+        // and
+        lf_set(all, l && c && r);
+        self->psensors = 0;
+    =}
+
+
+}
+
+reactor Cliff extends RomiSensor {
+    output all:bool;
+    output any:bool;
+    output dir:int;
+
+    reaction(trigger) -> all, any, dir {=
+        // left then center then right
+        if (self->psensors.reflectance.left) {
+            lf_set(dir, -1);
+        } else if (self->psensors.reflectance.center) {
+            lf_set(dir, 0);
+        } else if (self->psensors.reflectance.right) {
+            lf_set(dir, 1);
+        }
+        // or
+        lf_set(any, l || c || r);
+        // and
+        lf_set(all, l && c && r);
+        self->psensors = 0;
+    =}
+}
+
+reactor TankDrive {
+    input lpwr:int16_t;
+    input rpwr:int16_t;
+
+    state prev_lpwr:int16_t;
+    state prev_rpwr:int16_t;
+
+    logical action send;
+
+    reaction(startup) {=
+        APP_ERROR_CHECK(romi_init());
+    =}
+
+    // Set left power
+    reaction(lpwr) -> send {=
+        self->prev_lpwr = lpwr->value;
+        lf_schedule(send);
+    =}
+
+    // Set right power
+    reaction(rpwr) -> send {=
+        self->prev_rpwr = rpwr->value;
+        lf_schedule(send);
+    =}
+
+    // Send actuation uart command to romi
+    reaction(send) {=
+        uint32_t err;
+        err = romi_drive_direct(prev_lpwr->value, prev_rpwr->value);
+        APP_ERROR_CHECK(err);
+    =}
+}
+
+reactor RomiSensorArray {
+    input trigger:bool;
+    output bump:bool;
+    output btn:bool;
+    output cliff_dir:int;
+
+    // Sensor Input
+    cliff = new Cliff();
+    bumper = new Bumper();
+    button = new Button();
+    
+    // Sensor cache lines for romi sensors.
+    cliff.scache_out -> bumper.scache_in;
+    bumper.scache_out -> button.scache_in;
+
+    trigger -> cliff.trigger;
+    trigger -> button.trigger;
+    trigger -> bumper.trigger;
+
+    bumper.any -> bump;
+    button.pressed -> btn;
+    cliff.dir -> cliff_dir;
+
+}

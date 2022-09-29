@@ -1,0 +1,19 @@
+target C {
+    threading: false,
+    build: "../scripts/builf_nrf_unix.sh"
+};
+
+preamble {=
+    // preamble
+    #include "lib/romi.h"
+    #include <stdint.h> // Defines uint8_t, etc.
+=}
+
+reactor PController(gain:float(0), bias:float(0), set_point:float(0)) {
+    input cur_value:float;
+
+    output control:float;
+    reaction(cur_value) {=
+        control->value = gain * (set_point - cur_value) + bias;
+    =}
+}
