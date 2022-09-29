@@ -1,32 +1,37 @@
 target C;
 
 preamble {=
-	//preamble
+    //preamble
     #include <math.h>
 =}
 
 /**
-* Given x, y, and z accelerometer readings in g's, output the tilt in the x and y directions.
-* The outputs are in radians will be in the range of -PI/2 to PI/2.
-*/
-reactor Tilt {
+ * Given x, y, and z accelerometer readings in g's,
+ * output the tilt in the x and y directions.
+ * The outputs are approximately in degrees in the range of -90.0 to 90.0.
+ * The bias and sensitivity parameters need to be determined experimentally
+ * for each robot.
+ * @author Abhi Gundrala
+ * @author Edward A. Lee
+ */
+reactor Tilt(bias:float(0.0), sensitivity:float(1.0)) {
     input x:float;
-	input y:float;
-	input z:float;
+    input y:float;
+    input z:float;
 
-	output xz:float;
-	output yz:float;
-	
-	reaction(x, y, z) -> xz, yz {=
+    output xangle:float;
+    output yangle:float;
+    
+    reaction(x, y, z) -> xangle, yangle {=
         float ax, ay, az;
-		if (z->is_present && x->is_present && y->is_present) {
-			// extract values
-		    ax = x->value;
-			ay = y->value;
-			az = z->value;
-			// calculate tilt angles
-            lf_set(xz, atanf(ax/sqrt(ay*ay + az*az)));
-            lf_set(yz, atanf(ay/sqrt(ax*ax + az*az)));
-		}
-	=}
+        if (z->is_present && x->is_present && y->is_present) {
+            // extract values
+            ax = x->value;
+            ay = y->value;
+            az = z->value;
+            // calculate tilt angles
+            lf_set(xangle, -self->bias + 180 * atanf(ax/sqrt(ay*ay + az*az)) / (M_PI * self->sensitivity));
+            lf_set(yangle, -self->bias + 180 * atanf(ay/sqrt(ax*ax + az*az)) / (M_PI * self->sensitivity));
+        }
+    =}
 }
