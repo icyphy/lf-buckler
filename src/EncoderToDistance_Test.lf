@@ -33,11 +33,9 @@ main reactor(ticks_to_meters:float(0.0006108)) {
 
     converter_up = new EncoderToDistance(
         ticks_to_meters = ticks_to_meters,
-        init_encoder = 30000
     );
     converter_down = new EncoderToDistance(
         ticks_to_meters = ticks_to_meters,
-        init_encoder = 30000
     );
     reaction(t) -> converter_up.encoder, converter_down.encoder {=
         lf_set(converter_up.encoder, self->reading_up);
