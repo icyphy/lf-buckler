@@ -382,7 +382,8 @@ int32_t romi_drive_direct(int16_t left_wheel_speed, int16_t right_wheel_speed)
     }
     else
     {
-        double estimate = (right_wheel_speed + left_wheel_speed) / (2.0 * (right_wheel_speed - right_wheel_speed) / 123.0);
+        double estimate = (right_wheel_speed + left_wheel_speed)
+        		/ (2.0 * (right_wheel_speed - left_wheel_speed) / 123.0);
         // The value 123 was determined experimentally to work, and is approximately 1/2 the wheelbase in mm.
 
         radius = round(estimate);
