@@ -1,0 +1,23 @@
+target C;
+/**
+ * First-order recursive filter, which has an exponential impulse response.
+ * The n-th output is given by
+ * 
+ *    out[n] = (1 - scale) * out[n-1] + scale * in[n]
+ * 
+ * The init parameter gives the initial value used for out[n-1] when n=0.
+ * 
+ * @author Edward A. Lee
+ * @author Abhi Gundrala
+ */
+reactor ExponentialFilter(scale:float(0.1), init:float(0.0)) {
+    input in:float;
+    output out:float;
+
+    reset state prev:float(init);
+
+    reaction(in) -> out {=
+        self->prev = self->scale * in->value + (1 - self->scale) * self->prev;
+        lf_set(out, self->prev);
+    =}
+}
