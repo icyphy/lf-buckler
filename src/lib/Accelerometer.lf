@@ -7,6 +7,7 @@
  *     https://infocenter.nordicsemi.com/topic/com.nordic.infocenter.sdk5.v15.3.0/group__nrfx__saadc.html
  * 
  * @author Edward A. Lee
+ * @author Abhi Gundrala
  */
 target C;
 
@@ -31,9 +32,10 @@ preamble {=
      #define LSB FSR / 4096
 
     /**
-     * ADXL327 Constants
-     * bias and sensitivity are ratiometric
-     * they are proportional to the supply voltage which might be less than 3V
+     * ADXL327 Constants.
+     * Bias and sensitivity are ratiometric.
+     * They are proportional to the supply voltage which might be less than 3V.
+     * They can further adjusted using the bias and sensitivity parameters.
      */
     #define VSS 2.98
     #define ADXL327_BIAS 1.5 * (VSS / 3.0)
@@ -58,10 +60,11 @@ preamble {=
 =}
 
 /**
- * Reactor that, when triggered, outputs the x, y, and z axis readings in gs
+ * Reactor that, when triggered, outputs the x, y, and z axis readings in g's
  * of the analog accelerometer on the Buckler board.
+ * The bias and sensitivity need to be determined experimentally.
  */
-reactor Accelerometer(row:int(0)) {
+reactor Accelerometer(bias:float(0.0), sensitivity:float(1.0)) {
     input trigger:bool;
     output x:float;
     output y:float;
@@ -106,9 +109,12 @@ reactor Accelerometer(row:int(0)) {
             y_raw = sample_value(Y_CHANNEL);
             z_raw = sample_value(Z_CHANNEL);
             
-            lf_set(x, ((x_raw * LSB) - ADXL327_BIAS) / ADXL327_SENS);
-            lf_set(y, ((y_raw * LSB) - ADXL327_BIAS) / ADXL327_SENS);
-            lf_set(z, ((z_raw * LSB) - ADXL327_BIAS) / ADXL327_SENS);
+            float bias = self->bias + ADXL327_BIAS;
+            float sensitivity = self->sensitivity * ADXL327_SENS;
+            
+            lf_set(x, ((x_raw * LSB) - bias) / sensitivity);
+            lf_set(y, ((y_raw * LSB) - bias) / sensitivity);
+            lf_set(z, ((z_raw * LSB) - bias) / sensitivity);
         }
     =}
 }
