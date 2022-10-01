@@ -1,16 +1,20 @@
 target C;
 
 preamble {=
-    //preamble
     #include <math.h>
 =}
 
 /**
  * Given x, y, and z accelerometer readings in g's,
- * output the tilt in the x and y directions.
+ * output the angles in the x and y directions (pitch and roll, respectively)
+ * and the tilt (angle between the z axis and the x-y plane.
  * The outputs are approximately in degrees in the range of -90.0 to 90.0.
  * The bias and sensitivity parameters need to be determined experimentally
  * for each robot.
+ * 
+ * The algorithm used here is explained in the following app note:
+ * https://www.nxp.com/files-static/sensors/doc/app_note/AN3461.pdf
+ * 
  * @author Abhi Gundrala
  * @author Edward A. Lee
  */
@@ -19,19 +23,26 @@ reactor Tilt(bias:float(0.0), sensitivity:float(1.0)) {
     input y:float;
     input z:float;
 
-    output xangle:float;
-    output yangle:float;
+    output pitch:float;
+    output roll:float;
+    output tilt:float;
     
-    reaction(x, y, z) -> xangle, yangle {=
+    reaction(x, y, z) -> pitch, roll, tilt {=
         float ax, ay, az;
-        if (z->is_present && x->is_present && y->is_present) {
-            // extract values
-            ax = x->value;
-            ay = y->value;
-            az = z->value;
-            // calculate tilt angles
-            lf_set(xangle, -self->bias + 180 * atanf(ax/sqrt(ay*ay + az*az)) / (M_PI * self->sensitivity));
-            lf_set(yangle, -self->bias + 180 * atanf(ay/sqrt(ax*ax + az*az)) / (M_PI * self->sensitivity));
-        }
+        // Extract values.
+        ax = x->value;
+        ay = y->value;
+        az = z->value;
+        // Calculate tilt angles in radians.
+        float xtilt = atanf(-ax/sqrt(ay*ay + az*az));
+        float ytilt = atanf(-ay/sqrt(ax*ax + az*az));
+        // Convert to degrees and adjust sensitivity and bias.
+        lf_set(pitch, -self->bias + 180 * xtilt / (M_PI * self->sensitivity));
+        lf_set(roll, -self->bias + 180 * ytilt / (M_PI * self->sensitivity));
+        // Use the Rodrigues' rotation formula to calculate the tilt
+        // (see https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula).
+        // Have to convert back to radians to calculate the cosines:
+        lf_set(tilt, 180 * acosf(cosf(pitch->value * M_PI/180)
+            * cosf(roll->value * M_PI/180)) / M_PI);
     =}
 }
