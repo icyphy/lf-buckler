@@ -1,0 +1,108 @@
+target C {
+    threading: false,
+    build: "../scripts/build_nrf_unix.sh"   
+};
+
+import Display from "lib/Display.lf"
+
+preamble {=
+    #include "simple_ble.h"
+
+    // Data structures needed for BLE.
+    // See https://github.com/lab11/nrf52x-base/blob/master/lib/simple_ble/README.md
+
+    // BLE Configuration specifies the MAC address and
+    // intervals for advertising and connections.
+    static simple_ble_config_t ble_config = {
+            // MAC address: c0:98:e5:49:xx:xx
+            // where the last two octets are given by the device_id below.
+            .platform_id       = 0x49,   // The 4th octet in device BLE address.
+            .device_id         = 0xAABB, // TODO: replace with your lab bench number
+            .adv_name          = "ROMI", // used in advertisements if there is room
+            .adv_interval      = MSEC_TO_UNITS(100, UNIT_0_625_MS),
+            .min_conn_interval = MSEC_TO_UNITS(100, UNIT_1_25_MS),
+            .max_conn_interval = MSEC_TO_UNITS(200, UNIT_1_25_MS),
+    };
+
+    // Specify a unique ID for the ROMI service.
+    // UUID: 85e43f4d-b4a7-4c6f-ba86-2db3c40a2c83
+    static simple_ble_service_t romi_service = {{
+        .uuid128 = {0x83,0x2c,0x0a,0xc4,0xb3,0x2d,0x86,0xba,
+                    0x6f,0x4c,0xa7,0xb4,0x4d,0x3f,0xe4,0x85}
+    }};
+
+    // Characteristic reflecting key presses.
+    // The characteristic is identified within the service by a 16-bit unique ID.
+    static simple_ble_char_t key_state_characteristic = {.uuid16 = 0x7182};
+=}
+
+/**
+ * This reactor, designed to run on an nRF52 board, advertises
+ * itself during startup and adds a Bluetooth service with a
+ * characteristic that receives arrow key information from a
+ * computer that pairs with the nRF52. It then periodically
+ * outputs four booleans indicating whether each particular
+ * arrow key is currently pressed.  The period is given as
+ * a parameter.
+ */
+reactor ArrowKeys(period:time(100 ms)) {
+
+    output up:bool;
+    output down:bool;
+    output left:bool;
+    output right:bool;
+
+    timer t(0, period);
+
+    reaction(startup) {=
+        // Set up BLE.
+        // See https://github.com/lab11/nrf52x-base/blob/master/lib/simple_ble/README.md
+
+        // Your code goes here.
+    =}
+
+    reaction(t) -> up, down, left, right {=
+        // Output a boolean for each arrow key, where true
+        // indicates that the key is currently pressed and false
+        // indicates that it is not.
+
+        // Your code goes here.
+    =}
+}
+
+/**
+ * Create an ArrowKeys reactor that listens for Bluetooth signals
+ * reporting when the user presses arrow keys on a computer that is
+ * paired with the nRF52 running this program and displays which
+ * arrow keys are pressed.
+ */
+main reactor {
+
+    display = new Display();
+    keys    = new ArrowKeys();
+
+    reaction(keys.up, keys.down, keys.left, keys.right) -> display.message {=
+        static char message[5] = "____\0";
+        if (keys.up->value) {
+            message[0] = 'U';
+        } else {
+            message[0] = '_';
+        }
+        if (keys.down->value) {
+            message[1] = 'D';
+        } else {
+            message[1] = '_';
+        }
+        if (keys.left->value) {
+            message[2] = 'L';
+        } else {
+            message[2] = '_';
+        }
+        if (keys.right->value) {
+            message[3] = 'R';
+        } else {
+            message[3] = '_';
+        }
+        lf_set(display.message, message);
+    =}
+}
