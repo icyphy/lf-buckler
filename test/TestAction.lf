@@ -6,12 +6,19 @@ target C {
 main reactor {
 
     logical action a;
+    state cnt:int(0)
 
     reaction(startup) -> a {=
         lf_schedule(a, MSEC(10));
     =}
 
     reaction(a) {=
-        printf("Action triggered\n");
+        self->cnt++;
+    =}
+
+    reaction(shutdown) {=
+        if (self->cnt != 1) {
+            lf_print_error_and_exit("Failed");
+        }
     =}
 }

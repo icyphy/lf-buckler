@@ -4,9 +4,17 @@ target C {
     timeout: 1 sec
 }
 main reactor {
-    timer t(0, 100 msec)
+    timer t(0, 100 msec);
+    state cnt:int(0)
 
     reaction(t) {=
         printf("Timer triggered\n");
+        self->cnt++;
+    =}
+
+    reaction(shutdown) {=
+        if (self->cnt != 11) {
+            lf_print_error_and_exit("Failed");
+        }
     =}
 }
