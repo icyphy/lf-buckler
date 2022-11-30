@@ -61,3 +61,5 @@ dkms.conf
 # VS Code
 .vscode
 
+# Test results
+test/results/
