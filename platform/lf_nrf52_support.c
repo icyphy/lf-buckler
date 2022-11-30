@@ -27,7 +27,7 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * @author{Soroush Bateni <soroush@utdallas.edu>}
  * @author{Abhi Gundrala <gundralaa@berkeley.edu>}
- * @author{Erling Jellum} <erling.r.jellum@ntnu.no>}
+ * @author{Erling Jellum <erling.r.jellum@ntnu.no>}
  * @author{Marten Lohstroh <marten@berkeley.edu>}
  */
 
@@ -93,13 +93,9 @@ uint8_t _lf_nested_region = 0;
 void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
     
     if (event_type == NRF_TIMER_EVENT_COMPARE2) {
-        LF_PRINT_DEBUG("Sleep timer expired!");
         _lf_sleep_completed = true;
     } else if (event_type == NRF_TIMER_EVENT_COMPARE3) {
         _lf_time_us_high =+ 1;
-        LF_PRINT_DEBUG("Overflow detected!");
-    } else {
-        LF_PRINT_DEBUG("Some unexpected event happened: %d", event_type);
     }
 }
 
@@ -109,10 +105,6 @@ void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
 void lf_initialize_clock() {
     ret_code_t error_code;
     _lf_time_us_high = 0;
-    // initialize power management
-  
-    ret_code_t error_code = nrf_pwr_mgmt_init();
-    APP_ERROR_CHECK(error_code);
 
     // Initialize TIMER3 as a free running timer
     // 1) Set to be a 32 bit timer
@@ -233,16 +225,12 @@ static void lf_busy_wait_until(instant_t wakeup_time) {
  * @return int 0 if sleep completed, or -1 if it was interrupted.
  */
 int lf_sleep_until(instant_t wakeup_time) {
-    // FIXME: The proper way to do this is scheduling multiple sleeps in a while loop
-    //  when the sleeps return either there was an interrupt (in which case we return)
-    //  or it completed and we continue to next max sleep until we are finished.
-    //  this fix results in busy-sleeping until duration<max_sleep
     instant_t now;
     lf_clock_gettime(&now);
     interval_t duration = wakeup_time - now;
     if (duration < 0) {
         return 0;
-    } else if (duration < MIN_SLEEP_NS) {
+    } else if (duration < LF_MIN_SLEEP_NS) {
         lf_busy_wait_until(wakeup_time);
         return 0;
     } 
@@ -257,12 +245,14 @@ int lf_sleep_until(instant_t wakeup_time) {
     do {
         // Only calculate and schedule a new timer interrupt if the old one already fired
         if (_lf_sleep_completed) {
-            if (duration > UINT32_MAX) {
                 uint32_t curr_timer_val = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
+            uint32_t target_timer_val = 0;
+
+            if (duration > LF_MAX_SLEEP_NS) {
                 target_timer_val = curr_timer_val-1;
                 duration -= UINT32_MAX;
             } else {
-                uint32_t target_timer_val = (uint32_t)(wakeup_time / 1000);
+                target_timer_val = (uint32_t)(wakeup_time / 1000);
                 sleep_next = false;        
             }
             // init timer interrupt for sleep time

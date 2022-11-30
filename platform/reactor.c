@@ -44,16 +44,6 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 pqueue_t* reaction_q;
 
 /**
- * Unless the "fast" option is given, an LF program will wait until
- * physical time matches logical time before handling an event with
- * a given logical time. The amount of time is less than this given
- * threshold, then no wait will occur. The purpose of this is
- * to prevent unnecessary delays caused by simply setting up and
- * performing the wait.
- */
-#define MIN_SLEEP_DURATION USEC(10) // FIXME: https://github.com/lf-lang/reactor-c/issues/109
-
-/**
  * Mark the given port's is_present field as true. This is_present field
  * will later be cleaned up by _lf_start_time_step.
  * @param port A pointer to the port struct.
