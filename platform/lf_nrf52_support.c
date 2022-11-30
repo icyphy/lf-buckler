@@ -40,10 +40,10 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "lf_nrf52_support.h"
 #include "../platform.h"
 #include "../utils/util.h"
+#include "../tag.h"
 
 #include "nrf.h"
 #include "nrfx_timer.h"
-#include "nrf_pwr_mgmt.h"
 #include "nrf_nvic.h"
 #include "nrf_soc.h"
 #include "app_error.h"
@@ -63,8 +63,9 @@ static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
 // Combine 2 32bit works to a 64 bit word
 #define COMBINE_HI_LO(hi,lo) ((((uint64_t) hi) << 32) | ((uint64_t) lo))
 
-// Maximum sleep possible
-#define MAX_SLEEP_NS 1000LL*UINT32_MAX
+// Maximum and minimum sleep possible
+#define LF_MAX_SLEEP_NS USEC(UINT32_MAX)
+#define LF_MIN_SLEEP_NS USEC(5) 
 
 /**
  * Variable tracking the higher 32bits of the time
@@ -76,47 +77,6 @@ static volatile uint32_t _lf_time_us_high = 0;
  * Flag passed to sd_nvic_critical_region_*
  */
 uint8_t _lf_nested_region = 0;
-
-/**
- * Offset to _LF_CLOCK that would convert it
- * to epoch time.
- * For CLOCK_REALTIME, this offset is always zero.
- * For CLOCK_MONOTONIC, it is the difference between those
- * clocks at the start of the execution.
- */
-interval_t _lf_time_epoch_offset = 0LL;
-
-/**
- * Convert a _lf_time_spec_t ('tp') to an instant_t representation in
- * nanoseconds.
- *
- * @return nanoseconds (long long).
- */
-instant_t convert_timespec_to_ns(struct timespec tp) {
-    return tp.tv_sec * 1000000000 + tp.tv_nsec;
-}
-
-/**
- * Convert an instant_t ('t') representation in nanoseconds to a
- * _lf_time_spec_t.
- *
- * @return _lf_time_spec_t representation of 't'.
- */
-struct timespec convert_ns_to_timespec(instant_t t) {
-    struct timespec tp;
-    tp.tv_sec = t / 1000000000;
-    tp.tv_nsec = (t % 1000000000);
-    return tp;
-}
-
-/**
- * Calculate the necessary offset to bring _LF_CLOCK in parity with the epoch
- * time reported by CLOCK_REALTIME.
- */
-void calculate_epoch_offset() {
-    // unimplemented - on the nrf, probably not possible to get a bearing on real time.
-    _lf_time_epoch_offset = 0LL;
-}
 
 /**
  * Handles LF timer interrupts
@@ -147,7 +107,7 @@ void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
  * Initialize the LF clock.
  */
 void lf_initialize_clock() {
-    _lf_time_epoch_offset = 0LL;
+    ret_code_t error_code;
     _lf_time_us_high = 0;
     // initialize power management
   
@@ -344,11 +304,9 @@ int lf_critical_section_exit() {
 }
 
 /**
- * @brief Do nothing. On the NRF, sleep interruptions are recorded in
- * the function _lf_timer_event_handler. Whenever sleep gets interrupted,
- * the next function is re-entered to make sure the event queue gets 
- * checked again.
- * @return 0 
+ * @brief Set global flag to true so that sleep will return when woken 
+ * 
+ * @return int 
  */
 int lf_notify_of_event() {
     _lf_async_event = true;
