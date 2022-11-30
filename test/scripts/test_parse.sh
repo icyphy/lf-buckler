@@ -18,4 +18,3 @@ fi
 
 echo "Test: $1 succeeded"
 
-
