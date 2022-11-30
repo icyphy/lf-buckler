@@ -1,0 +1,69 @@
+// User has to press BTN1 and observe the LED0 toggle to verify
+// @author Erling Rennemo Jellum
+target C {
+    threading: false,
+    build: "../scripts/build_nrf_unix.sh",
+    timeout: 1 sec
+};
+
+preamble {=
+    #include "nrf_gpio.h"       // Defines nrf_gpio...
+    #include "nrf_drv_gpiote.h" // nrf_gpio interrupt driver
+    #include "app_error.h"
+
+    #define LED0 NRF_GPIO_PIN_MAP(0, 17)
+
+    #define BTN1 NRF_GPIO_PIN_MAP(0, 13)
+    // nrf interrupt
+    void* p_btn_trigger;
+    void btn_pin_handle(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity) {
+        // interrupt body
+        lf_schedule(p_btn_trigger, 0);
+        printf("DEBUG: interrupt\n");
+    }
+=}
+
+/**
+ * Flash a distinctive pattern on three LEDs on the nRF52 and,
+ * in response to pushing button 1, toggle the fourth LED.
+ * This can be usefully included in other programs to indicate liveness.
+ */
+main reactor {
+    physical action btn;
+
+    reaction(startup) -> btn {=
+        // btn handle
+        p_btn_trigger = btn;
+        
+        // Configure LEDs by defining their GPIO pins as outputs.
+        // Initially, the LEDs will be on.
+        ret_code_t error_code = NRF_SUCCESS;
+
+        // Initialize GPIO driver.
+        if (!nrfx_gpiote_is_init()) {
+            error_code = nrfx_gpiote_init();
+        }
+        APP_ERROR_CHECK(error_code);
+
+        // Configure LEDs.
+        // Manually-controlled (simple) output, initially set.
+        nrfx_gpiote_out_config_t out_config = NRFX_GPIOTE_CONFIG_OUT_SIMPLE(true);
+
+        error_code = nrfx_gpiote_out_init(LED0, &out_config);
+        APP_ERROR_CHECK(error_code);
+        
+        // Set up config struct for a falling edge interrupt.
+        // Input pin, trigger on high to low, high accuracy (disallows low-power operation).
+        nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
+        in_config.pull = NRF_GPIO_PIN_PULLUP;
+        error_code = nrfx_gpiote_in_init(BTN1, &in_config, btn_pin_handle);
+        APP_ERROR_CHECK(error_code);
+        
+        // Enable interrupts.
+        nrfx_gpiote_in_event_enable(BTN1, true);
+    =}
+
+    reaction(btn) {=
+        nrf_gpio_pin_toggle(LED0);
+    =}
+}
