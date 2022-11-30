@@ -268,7 +268,15 @@ int lf_sleep_until(instant_t wakeup_time) {
 
         // Enter critical section again
         lf_critical_section_enter();
-    } while( (!_lf_async_event && sleep_next) || (!_lf_async_event && !_lf_sleep_completed));
+
+        // Redo while loop and go back to sleep if:
+        //  1) We didnt have async event AND
+        //  2) We have more sleeps left OR the sleep didnt complete
+        // 
+        // This means we leave the sleep while if:
+        //  1) There was an async event OR
+        //  2) no more sleeps AND sleep completed 
+    } while( (!_lf_async_event && (sleep_next || !_lf_sleep_completed));
     
     
     
