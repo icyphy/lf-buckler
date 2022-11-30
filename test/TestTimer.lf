@@ -1,0 +1,12 @@
+target C {
+    build: "../scripts/build_nrf_unix.sh",
+    threading: false,
+    timeout: 1 sec
+}
+main reactor {
+    timer t(0, 100 msec)
+
+    reaction(t) {=
+        printf("Timer triggered\n");
+    =}
+}

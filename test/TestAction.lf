@@ -1,0 +1,17 @@
+target C {
+    build: "../scripts/build_nrf_unix.sh",
+    threading: false,
+}
+
+main reactor {
+
+    logical action a;
+
+    reaction(startup) -> a {=
+        lf_schedule(a, MSEC(10));
+    =}
+
+    reaction(a) {=
+        printf("Action triggered\n");
+    =}
+}

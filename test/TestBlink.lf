@@ -1,0 +1,11 @@
+target C {
+    build: "../scripts/build_nrf_unix.sh",
+    threading: false,
+    timeout: 1 sec
+}
+
+import FlashingLEDs from "../src/BuiltInLED.lf"
+
+main reactor {
+    leds = new FlashingLEDs()
+}
