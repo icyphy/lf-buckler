@@ -91,24 +91,6 @@ void _lf_set_present(lf_port_base_t* port) {
 int wait_until(instant_t wakeup_time) {
     if (!fast) {
         LF_PRINT_LOG("Waiting for elapsed logical time " PRINTF_TIME ".", wakeup_time - start_time);
-        interval_t sleep_duration = wakeup_time - lf_time_physical();
-    
-        if (sleep_duration <= 0) {
-            return 0;
-        } else if (sleep_duration < MIN_SLEEP_DURATION) {
-            // This is a temporary fix. FIXME: factor this out into platform API function.
-            // Issue: https://github.com/lf-lang/reactor-c/issues/109
-            // What really should be done on embedded platforms:
-            // - compute target time
-            // - disable interrupts
-            // - read current time
-            // - compute shortest distance between target time and current time 
-            // - shortest distance should be positive and at least 2 ticks(us)
-            LF_PRINT_DEBUG("Wait time " PRINTF_TIME " is less than MIN_SLEEP_DURATION %lld. Skipping wait.",
-                sleep_duration, MIN_SLEEP_DURATION);
-            return -1;
-        }
-        LF_PRINT_DEBUG("Going to sleep for %"PRId64" ns\n", sleep_duration);
         return lf_sleep_until(wakeup_time);
     }
     return 0;

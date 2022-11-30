@@ -51,7 +51,8 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /**
  * True when the last requested sleep has been completed, false otherwise.
  */
-volatile bool _lf_sleep_completed = false;
+static volatile bool _lf_sleep_completed = false;
+static volatile bool _lf_async_event = false;
 
 /**
  * lf global timer instance
@@ -250,14 +251,28 @@ int lf_sleep(interval_t sleep_duration) {
 }
 
 /**
- * @brief Sleep until the given wakeup time.
+ * @brief Do a busy-wait until a time instant
+ * 
+ * @param wakeup_time 
+ */
+
+static void lf_busy_wait_until(instant_t wakeup_time) {
+    instant_t now;
+    do {
+        lf_clock_gettime(&now);
+    } while (now < wakeup_time);
+}
+
+/**
+ * @brief Sleep until the given wakeup time. There are a couple of edge cases to consider
+ *  1. Wakeup time is already past
+ *  2. Wakeup time is below threshold
+ *  3. Sleep duration is longer than max duration (UINT32_MAX) 
  * 
  * @param wakeup_time The time instant at which to wake up.
  * @return int 0 if sleep completed, or -1 if it was interrupted.
  */
 int lf_sleep_until(instant_t wakeup_time) {
-    
-    _lf_sleep_completed = false;
     // FIXME: The proper way to do this is scheduling multiple sleeps in a while loop
     //  when the sleeps return either there was an interrupt (in which case we return)
     //  or it completed and we continue to next max sleep until we are finished.
@@ -265,29 +280,48 @@ int lf_sleep_until(instant_t wakeup_time) {
     instant_t now;
     lf_clock_gettime(&now);
     interval_t duration = wakeup_time - now;
-    if (duration > MAX_SLEEP_NS) {
-        return -1;
-    }
+    if (duration < 0) {
+        return 0;
+    } else if (duration < MIN_SLEEP_NS) {
+        lf_busy_wait_until(wakeup_time);
+        return 0;
+    } 
 
-    uint32_t target_timer_val = (uint32_t)(wakeup_time / 1000);
-    uint32_t curr_timer_val = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
+    // The sleeping while loop continues until either:
+    // 1) An event (physical action) is put on the event queue
+    // 2) Sleep terminates which is checked by sleep_next=false AND _lf_sleep_completed==false
+    bool sleep_next = true;
+    _lf_sleep_completed = true;
+    _lf_async_event = false;
 
-    LF_PRINT_DEBUG("Entering suspend wait until t+%"PRIu32" us (current value: %"PRIu32")\n", target_timer_val, curr_timer_val);
+    do {
+        // Only calculate and schedule a new timer interrupt if the old one already fired
+        if (_lf_sleep_completed) {
+            if (duration > UINT32_MAX) {
+                uint32_t curr_timer_val = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
+                target_timer_val = curr_timer_val-1;
+                duration -= UINT32_MAX;
+            } else {
+                uint32_t target_timer_val = (uint32_t)(wakeup_time / 1000);
+                sleep_next = false;        
+            }
+            // init timer interrupt for sleep time
+            _lf_sleep_completed = false;
+            nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
+        }
+        
+
+        // Leave critical section
+        lf_critical_section_exit();
+        
+        // wait for exception
+        __WFE();
+         
+        // Enter critical section again
+        lf_critical_section_enter();
+    } while( (!_lf_async_event && sleep_next) || (!_lf_async_event && !_lf_sleep_completed));
     
-    // assert that indeed we are in the critical section
-    assert(in_critical_section());
-    lf_critical_section_exit();
-
-    // init timer interrupt for sleep time
-    nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
     
-    // wait for exception
-    nrf_pwr_mgmt_run();
-    
-    // disable interrupt in case it is still pending
-    nrfx_timer_compare_int_disable(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
-
-    lf_critical_section_enter();
     
     if (_lf_sleep_completed) {
         return 0;
@@ -317,9 +351,6 @@ int lf_critical_section_exit() {
  * @return 0 
  */
 int lf_notify_of_event() {
-    // FIXME: record notifications so that we can immediately
-    // restart the timer in case the interrupt was unrelated
-    // to the scheduling of a new event.
-    // Issue: https://github.com/icyphy/lf-buckler/issues/15
-   return 0;
+    _lf_async_event = true;
+    return 0;
 }
