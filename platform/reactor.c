@@ -239,8 +239,8 @@ int next(void) {
             _lf_set_stop_tag(
                 (tag_t){.time=current_tag.time, .microstep=current_tag.microstep+1}
             );
-            next_tag = stop_tag;
         }
+            next_tag = stop_tag;
     } else {
         next_tag.time = event->time;
         // Deduce the microstep
