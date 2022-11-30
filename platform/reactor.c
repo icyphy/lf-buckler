@@ -230,7 +230,7 @@ int next(void) {
                 (tag_t){.time=current_tag.time, .microstep=current_tag.microstep+1}
             );
         }
-            next_tag = stop_tag;
+        next_tag = stop_tag;
     } else {
         next_tag.time = event->time;
         // Deduce the microstep
@@ -324,11 +324,10 @@ int lf_reactor_c_main(int argc, const char* argv[]) {
         }
         // The above handles only "normal" termination (via a call to exit).
         // As a consequence, we need to also trap ctrl-C, which issues a SIGINT,
-        // and cause it to call exit.
-        // We wrap this statement since certain Arduino flavors don't support signals.
-        #ifndef ARDUINO
+        // and cause it to call exit. Embedded platforms with NO_TTY has no concept of a signal
+#ifndef NO_TTY
         signal(SIGINT, exit);
-        #endif
+#endif
         
         LF_PRINT_DEBUG("Initializing.");
         initialize(); // Sets start_time.

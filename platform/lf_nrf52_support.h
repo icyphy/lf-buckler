@@ -28,10 +28,14 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *  
  *  @author{Soroush Bateni <soroush@utdallas.edu>}
  *  @author{Abhi Gundrala <gundralaa@berkeley.edu>}
+ *  @author{Erling Rennemo Jellum <erling.r.jellum@ntnu.no>}
  */
 
 #ifndef LF_NRF52_SUPPORT_H
 #define LF_NRF52_SUPPORT_H
+
+// This embedded platform has no TTY suport
+#define NO_TTY 
 
 #include <stdint.h> // For fixed-width integral types
 #include <time.h>   // For CLOCK_MONOTONIC

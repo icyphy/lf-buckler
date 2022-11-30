@@ -45,7 +45,6 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nrf.h"
 #include "nrfx_timer.h"
 #include "nrf_nvic.h"
-#include "nrf_soc.h"
 #include "app_error.h"
 
 /**
@@ -245,7 +244,7 @@ int lf_sleep_until(instant_t wakeup_time) {
     do {
         // Only calculate and schedule a new timer interrupt if the old one already fired
         if (_lf_sleep_completed) {
-                uint32_t curr_timer_val = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
+            uint32_t curr_timer_val = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
             uint32_t target_timer_val = 0;
 
             if (duration > LF_MAX_SLEEP_NS) {
@@ -266,7 +265,7 @@ int lf_sleep_until(instant_t wakeup_time) {
         
         // wait for exception
         __WFE();
-         
+
         // Enter critical section again
         lf_critical_section_enter();
     } while( (!_lf_async_event && sleep_next) || (!_lf_async_event && !_lf_sleep_completed));
