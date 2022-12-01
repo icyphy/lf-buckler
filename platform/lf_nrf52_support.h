@@ -28,68 +28,24 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *  
  *  @author{Soroush Bateni <soroush@utdallas.edu>}
  *  @author{Abhi Gundrala <gundralaa@berkeley.edu>}
+ *  @author{Erling Rennemo Jellum <erling.r.jellum@ntnu.no>}
  */
 
 #ifndef LF_NRF52_SUPPORT_H
 #define LF_NRF52_SUPPORT_H
 
+// This embedded platform has no TTY suport
+#define NO_TTY 
+
 #include <stdint.h> // For fixed-width integral types
 #include <time.h>   // For CLOCK_MONOTONIC
 #include <stdbool.h>
 
-#include "nrf_delay.h"
-
-/**
- * For the nrf52, each mutex will control an interrupt.
- *
- * The mutex holds the interrupt number.
- * For example, a mutex might be defined for the GPIOTE peripheral interrupt number
- * 
- * When initialized, the interrupt is inserted into a global linked list
- * for disabling and enabling all interrupts during sleep functions.
- * - All interrupts are disabled by default after initialization
- * - Priority levels are restricted between (0-7)
- * 
- */
-
-// Define PRINTF_TIME and PRINTF_MICROSTEP, which are the printf
-// codes (like the d in %d to print an int) for time and microsteps.
-// To use these, specify the printf as follows:
-//     printf("%" PRINTF_TIME "\n", time_value);
-// On most platforms, time is an signed 64-bit number (int64_t) and
-// the microstep is an unsigned 32-bit number (uint32_t).
-// Sadly, in C, there is no portable to print such numbers using
-// printf without getting a warning on some platforms.
-// On each platform, the code for printf if given by the macros
-// PRId64 and PRIu32 defined in inttypes.h.  Hence, here, we import
-// inttypes.h, then define PRINTF_TIME and PRINTF_MICROSTEP.
-// If you are targeting a platform that uses some other type
-// for time and microsteps, you can simply define
-// PRINTF_TIME and PRINTF_MICROSTEP directly in the same file that
-// defines the types _instant_t, _interval_t, and _microstep_t.
 #include <inttypes.h>  // Needed to define PRId64 and PRIu32
 #define PRINTF_TIME "%" PRId64
 #define PRINTF_MICROSTEP "%" PRIu32
-
-// For convenience, the following string can be inserted in a printf
-// format for printing both time and microstep as follows:
-//     printf("Tag is " PRINTF_TAG "\n", time_value, microstep);
 #define PRINTF_TAG "(%" PRId64 ", %" PRIu32 ")"
 
-typedef struct nrf_int {
-    uint8_t int_num;
-    uint8_t priority;
-    struct nrf_int* next;
-} nrf_int;
-
-typedef struct nrf_int _lf_mutex_t;
-
-/**
- * Time instant. Both physical and logical times are represented
- * using this typedef.
- * WARNING: If this code is used after about the year 2262,
- * then representing time as a 64-bit long long will be insufficient.
- */
 typedef int64_t _instant_t;
 
 /**
@@ -101,6 +57,11 @@ typedef int64_t _interval_t;
  * Microstep instant.
  */
 typedef uint32_t _microstep_t;
+
+/**
+ * No mutex needed for single threaded NRF platforms
+ */
+typedef void _lf_mutex_t;
 
 /**
  * For user-friendly reporting of time values, the buffer length required.

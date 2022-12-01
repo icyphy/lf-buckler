@@ -1,4 +1,6 @@
-// Test normal scheduling of action
+
+// Test scheduling of action which should result in sleep below threshold
+// for doing busy-sleep instead due to scheduling 5 usec into future
 // @author Erling Rennemo Jellum
 target C {
     build: "../scripts/build_nrf_unix.sh",
@@ -11,15 +13,17 @@ main reactor {
     state cnt:int(0)
 
     reaction(startup) -> a {=
-        lf_schedule(a, MSEC(10));
+        lf_schedule(a, USEC(5));
     =}
 
     reaction(a) {=
-        self->cnt++;
+        if(++self->cnt < 10) {
+            lf_schedule(a, USEC(5));
+        }
     =}
 
     reaction(shutdown) {=
-        if (self->cnt != 1) {
+        if (self->cnt != 10) {
             lf_print_error_and_exit("Failed");
         }
     =}

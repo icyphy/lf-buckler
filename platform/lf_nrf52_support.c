@@ -27,7 +27,7 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * @author{Soroush Bateni <soroush@utdallas.edu>}
  * @author{Abhi Gundrala <gundralaa@berkeley.edu>}
- * @author{Erling Jellum} <erling.r.jellum@ntnu.no>}
+ * @author{Erling Jellum <erling.r.jellum@ntnu.no>}
  * @author{Marten Lohstroh <marten@berkeley.edu>}
  */
 
@@ -40,18 +40,18 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "lf_nrf52_support.h"
 #include "../platform.h"
 #include "../utils/util.h"
+#include "../tag.h"
 
 #include "nrf.h"
 #include "nrfx_timer.h"
-#include "nrf_pwr_mgmt.h"
 #include "nrf_nvic.h"
-#include "nrf_soc.h"
 #include "app_error.h"
 
 /**
  * True when the last requested sleep has been completed, false otherwise.
  */
-volatile bool _lf_sleep_completed = false;
+static volatile bool _lf_sleep_interrupted = false;
+static volatile bool _lf_async_event = false;
 
 /**
  * lf global timer instance
@@ -62,8 +62,9 @@ static const nrfx_timer_t g_lf_timer_inst = NRFX_TIMER_INSTANCE(3);
 // Combine 2 32bit works to a 64 bit word
 #define COMBINE_HI_LO(hi,lo) ((((uint64_t) hi) << 32) | ((uint64_t) lo))
 
-// Maximum sleep possible
-#define MAX_SLEEP_NS 1000LL*UINT32_MAX
+// Maximum and minimum sleep possible
+#define LF_MAX_SLEEP_NS USEC(UINT32_MAX)
+#define LF_MIN_SLEEP_NS USEC(5) 
 
 /**
  * Variable tracking the higher 32bits of the time
@@ -75,47 +76,6 @@ static volatile uint32_t _lf_time_us_high = 0;
  * Flag passed to sd_nvic_critical_region_*
  */
 uint8_t _lf_nested_region = 0;
-
-/**
- * Offset to _LF_CLOCK that would convert it
- * to epoch time.
- * For CLOCK_REALTIME, this offset is always zero.
- * For CLOCK_MONOTONIC, it is the difference between those
- * clocks at the start of the execution.
- */
-interval_t _lf_time_epoch_offset = 0LL;
-
-/**
- * Convert a _lf_time_spec_t ('tp') to an instant_t representation in
- * nanoseconds.
- *
- * @return nanoseconds (long long).
- */
-instant_t convert_timespec_to_ns(struct timespec tp) {
-    return tp.tv_sec * 1000000000 + tp.tv_nsec;
-}
-
-/**
- * Convert an instant_t ('t') representation in nanoseconds to a
- * _lf_time_spec_t.
- *
- * @return _lf_time_spec_t representation of 't'.
- */
-struct timespec convert_ns_to_timespec(instant_t t) {
-    struct timespec tp;
-    tp.tv_sec = t / 1000000000;
-    tp.tv_nsec = (t % 1000000000);
-    return tp;
-}
-
-/**
- * Calculate the necessary offset to bring _LF_CLOCK in parity with the epoch
- * time reported by CLOCK_REALTIME.
- */
-void calculate_epoch_offset() {
-    // unimplemented - on the nrf, probably not possible to get a bearing on real time.
-    _lf_time_epoch_offset = 0LL;
-}
 
 /**
  * Handles LF timer interrupts
@@ -132,13 +92,9 @@ void calculate_epoch_offset() {
 void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
     
     if (event_type == NRF_TIMER_EVENT_COMPARE2) {
-        LF_PRINT_DEBUG("Sleep timer expired!");
-        _lf_sleep_completed = true;
+        _lf_sleep_interrupted = false;
     } else if (event_type == NRF_TIMER_EVENT_COMPARE3) {
         _lf_time_us_high =+ 1;
-        LF_PRINT_DEBUG("Overflow detected!");
-    } else {
-        LF_PRINT_DEBUG("Some unexpected event happened: %d", event_type);
     }
 }
 
@@ -146,12 +102,8 @@ void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
  * Initialize the LF clock.
  */
 void lf_initialize_clock() {
-    _lf_time_epoch_offset = 0LL;
+    ret_code_t error_code;
     _lf_time_us_high = 0;
-    // initialize power management
-  
-    ret_code_t error_code = nrf_pwr_mgmt_init();
-    APP_ERROR_CHECK(error_code);
 
     // Initialize TIMER3 as a free running timer
     // 1) Set to be a 32 bit timer
@@ -250,46 +202,84 @@ int lf_sleep(interval_t sleep_duration) {
 }
 
 /**
- * @brief Sleep until the given wakeup time.
+ * @brief Do a busy-wait until a time instant
+ * 
+ * @param wakeup_time 
+ */
+
+static void lf_busy_wait_until(instant_t wakeup_time) {
+    instant_t now;
+    do {
+        lf_clock_gettime(&now);
+    } while (now < wakeup_time);
+}
+
+/**
+ * @brief Sleep until the given wakeup time. There are a couple of edge cases to consider
+ *  1. Wakeup time is already past
+ *  2. Implied sleep duration is below `LF_MAX_SLEEP_NS` threshold
+ *  3. Implied sleep duration is above `LF_MAX_SLEEP_NS` limit
  * 
  * @param wakeup_time The time instant at which to wake up.
  * @return int 0 if sleep completed, or -1 if it was interrupted.
  */
 int lf_sleep_until(instant_t wakeup_time) {
-    
-    _lf_sleep_completed = false;
-    // FIXME: The proper way to do this is scheduling multiple sleeps in a while loop
-    //  when the sleeps return either there was an interrupt (in which case we return)
-    //  or it completed and we continue to next max sleep until we are finished.
-    //  this fix results in busy-sleeping until duration<max_sleep
     instant_t now;
     lf_clock_gettime(&now);
     interval_t duration = wakeup_time - now;
-    if (duration > MAX_SLEEP_NS) {
-        return -1;
-    }
+    if (duration <= 0) {
+        return 0;
+    } else if (duration < LF_MIN_SLEEP_NS) {
+        lf_busy_wait_until(wakeup_time);
+        return 0;
+    } 
 
-    uint32_t target_timer_val = (uint32_t)(wakeup_time / 1000);
-    uint32_t curr_timer_val = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
+    // The sleeping while loop continues until either:
+    // 1) A physical action is scheduled, resulting in a new event on the event queue
+    // 2) Sleep has completed successfully
+    bool sleep_next = true;
+    _lf_sleep_interrupted = false;
+    _lf_async_event = false;
 
-    LF_PRINT_DEBUG("Entering suspend wait until t+%"PRIu32" us (current value: %"PRIu32")\n", target_timer_val, curr_timer_val);
-    
-    // assert that indeed we are in the critical section
-    assert(in_critical_section());
-    lf_critical_section_exit();
+    do {
+        // Schedule a new timer interrupt unless we already have one pending
+        if (!_lf_sleep_interrupted) {
+            uint32_t curr_timer_val = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
+            uint32_t target_timer_val = 0;
+            // If the remaining sleep is longer than the limit, sleep for the maximum possible time.
+            if (duration > LF_MAX_SLEEP_NS) {
+                target_timer_val = curr_timer_val-1;
+                duration -= LF_MAX_SLEEP_NS;
+            } else {
+                target_timer_val = (uint32_t)(wakeup_time / 1000);
+                sleep_next = false;        
+            }
+            // init timer interrupt for sleep time
+            _lf_sleep_interrupted = true;
+            nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
+        }
 
-    // init timer interrupt for sleep time
-    nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
-    
-    // wait for exception
-    nrf_pwr_mgmt_run();
-    
-    // disable interrupt in case it is still pending
-    nrfx_timer_compare_int_disable(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
+        // Leave critical section
+        lf_critical_section_exit();
+        
+        // wait for exception
+        __WFE();
 
-    lf_critical_section_enter();
+        // Enter critical section again
+        lf_critical_section_enter();
+
+        // Redo while loop and go back to sleep if:
+        //  1) We didnt have async event AND
+        //  2) We have more sleeps left OR the sleep didnt complete
+        // 
+        // This means we leave the sleep while if:
+        //  1) There was an async event OR
+        //  2) no more sleeps AND sleep not interrupted 
+    } while(!_lf_async_event && (sleep_next || _lf_sleep_interrupted));
     
-    if (_lf_sleep_completed) {
+    
+    
+    if (!_lf_async_event) {
         return 0;
     } else {
         LF_PRINT_DEBUG("Sleep got interrupted...\n");
@@ -310,16 +300,11 @@ int lf_critical_section_exit() {
 }
 
 /**
- * @brief Do nothing. On the NRF, sleep interruptions are recorded in
- * the function _lf_timer_event_handler. Whenever sleep gets interrupted,
- * the next function is re-entered to make sure the event queue gets 
- * checked again.
- * @return 0 
+ * @brief Set global flag to true so that sleep will return when woken 
+ * 
+ * @return int 
  */
 int lf_notify_of_event() {
-    // FIXME: record notifications so that we can immediately
-    // restart the timer in case the interrupt was unrelated
-    // to the scheduling of a new event.
-    // Issue: https://github.com/icyphy/lf-buckler/issues/15
-   return 0;
+    _lf_async_event = true;
+    return 0;
 }

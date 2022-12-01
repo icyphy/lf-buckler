@@ -1,0 +1,11 @@
+// HelloWorld test program
+// @author Erling Rennemo Jellum
+target C {
+    build: "../scripts/build_nrf_unix.sh",
+    threading: false,
+}
+main reactor {
+    reaction(startup) {=
+        printf("Hello world\n");
+    =}
+}
