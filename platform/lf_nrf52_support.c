@@ -50,7 +50,7 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /**
  * True when the last requested sleep has been completed, false otherwise.
  */
-static volatile bool _lf_sleep_completed = false;
+static volatile bool _lf_sleep_interrupted = false;
 static volatile bool _lf_async_event = false;
 
 /**
@@ -92,7 +92,7 @@ uint8_t _lf_nested_region = 0;
 void lf_timer_event_handler(nrf_timer_event_t event_type, void *p_context) {
     
     if (event_type == NRF_TIMER_EVENT_COMPARE2) {
-        _lf_sleep_completed = true;
+        _lf_sleep_interrupted = false;
     } else if (event_type == NRF_TIMER_EVENT_COMPARE3) {
         _lf_time_us_high =+ 1;
     }
@@ -217,8 +217,8 @@ static void lf_busy_wait_until(instant_t wakeup_time) {
 /**
  * @brief Sleep until the given wakeup time. There are a couple of edge cases to consider
  *  1. Wakeup time is already past
- *  2. Wakeup time is below threshold
- *  3. Sleep duration is longer than max duration (UINT32_MAX) 
+ *  2. Implied sleep duration is below `LF_MAX_SLEEP_NS` threshold
+ *  3. Implied sleep duration is above `LF_MAX_SLEEP_NS` limit
  * 
  * @param wakeup_time The time instant at which to wake up.
  * @return int 0 if sleep completed, or -1 if it was interrupted.
@@ -227,7 +227,7 @@ int lf_sleep_until(instant_t wakeup_time) {
     instant_t now;
     lf_clock_gettime(&now);
     interval_t duration = wakeup_time - now;
-    if (duration < 0) {
+    if (duration =< 0) {
         return 0;
     } else if (duration < LF_MIN_SLEEP_NS) {
         lf_busy_wait_until(wakeup_time);
@@ -235,30 +235,29 @@ int lf_sleep_until(instant_t wakeup_time) {
     } 
 
     // The sleeping while loop continues until either:
-    // 1) An event (physical action) is put on the event queue
-    // 2) Sleep terminates which is checked by sleep_next=false AND _lf_sleep_completed==false
+    // 1) A physical action is scheduled, resulting in a new event on the event queue
+    // 2) Sleep has completed successfully
     bool sleep_next = true;
-    _lf_sleep_completed = true;
+    _lf_sleep_interrupted = false;
     _lf_async_event = false;
 
     do {
-        // Only calculate and schedule a new timer interrupt if the old one already fired
-        if (_lf_sleep_completed) {
+        // Schedule a new timer interrupt unless we already have one pending
+        if (!_lf_sleep_interrupted) {
             uint32_t curr_timer_val = nrfx_timer_capture(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2);
             uint32_t target_timer_val = 0;
-
+            // If the remaining sleep is longer than the limit, sleep for the maximum possible time.
             if (duration > LF_MAX_SLEEP_NS) {
                 target_timer_val = curr_timer_val-1;
-                duration -= UINT32_MAX;
+                duration -= LF_MAX_SLEEP_NS;
             } else {
                 target_timer_val = (uint32_t)(wakeup_time / 1000);
                 sleep_next = false;        
             }
             // init timer interrupt for sleep time
-            _lf_sleep_completed = false;
+            _lf_sleep_interrupted = true;
             nrfx_timer_compare(&g_lf_timer_inst, NRF_TIMER_CC_CHANNEL2, target_timer_val, true);
         }
-        
 
         // Leave critical section
         lf_critical_section_exit();
@@ -276,11 +275,11 @@ int lf_sleep_until(instant_t wakeup_time) {
         // This means we leave the sleep while if:
         //  1) There was an async event OR
         //  2) no more sleeps AND sleep completed 
-    } while( (!_lf_async_event && (sleep_next || !_lf_sleep_completed));
+    } while( (!_lf_async_event && (sleep_next || _lf_sleep_interrupted));
     
     
     
-    if (_lf_sleep_completed) {
+    if (!_lf_async_event) {
         return 0;
     } else {
         LF_PRINT_DEBUG("Sleep got interrupted...\n");
