@@ -227,7 +227,7 @@ int lf_sleep_until(instant_t wakeup_time) {
     instant_t now;
     lf_clock_gettime(&now);
     interval_t duration = wakeup_time - now;
-    if (duration =< 0) {
+    if (duration <= 0) {
         return 0;
     } else if (duration < LF_MIN_SLEEP_NS) {
         lf_busy_wait_until(wakeup_time);
@@ -274,8 +274,8 @@ int lf_sleep_until(instant_t wakeup_time) {
         // 
         // This means we leave the sleep while if:
         //  1) There was an async event OR
-        //  2) no more sleeps AND sleep completed 
-    } while( (!_lf_async_event && (sleep_next || _lf_sleep_interrupted));
+        //  2) no more sleeps AND sleep not interrupted 
+    } while(!_lf_async_event && (sleep_next || _lf_sleep_interrupted));
     
     
     
