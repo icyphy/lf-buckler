@@ -88,13 +88,14 @@ On macOS, you can [download from Oracle](https://www.oracle.com/java/technologie
 ### Lingua Franca Compiler
 
 [Download the Lingua Franca compiler, VS Code extension, or Epoch IDE](https://www.lf-lang.org/download) (Integrated Development Environment).
-For convenient access to the command-line compiler, add it to PATH. There are many ways to do this. The instructions below use .bashrc.
+For convenient access to the command-line compiler, add it to PATH. There are many ways to do this. The instructions below use `~/.bashrc`.
+Note that macOS uses `~/.bash_profile` instead of `~/.bashrc`.
 ```
 vim ~/.bashrc
 ```
 Add the following to the botton of the file. The run the source command to load into current shell instance.
 ```
-export PATH="$HOME/lfc_0.3.0/bin/lfc:$PATH"
+export PATH="$HOME/lfc_0.3.0/bin:$PATH"
 source ~/.bashrc
 ```
 Replace the above `$HOME/lfc_0.3.0` wiht the actual path to the version you downloaded.
