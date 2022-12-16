@@ -1,6 +1,6 @@
 # Lingua Franca, nRF52, and Buckler
 
-This repo provides resources for using Lingua Franca to program an nRF52x Thread/BLE embedded board from Nordic Semiconductor with and without a Berkeley Buckler daughter card. The first part of this README assumes you have already set up your machine and have connected the board to a USB port.  The second part explains how to do the setup.  The code has been tested on macOS and Ubuntu, with a pre-configured Ubuntu virtual machine available at **FIXME**.
+This repo provides resources for using Lingua Franca to program an nRF52x Thread/BLE embedded board from Nordic Semiconductor with and without a Berkeley Buckler daughter card. The first part of this README assumes you have already set up your machine and have connected the board to a USB port.  The second part explains how to do the setup.  The code has been tested on macOS and Ubuntu, with a pre-configured Ubuntu virtual machine available for download from [this Google Drive](https://drive.google.com/drive/folders/1jN6DjV-S9AAZPqaJNieDIQ9FXOE0bkLv).
 
 # Using Lingua Franca with the nRF52+Buckler
 
@@ -15,7 +15,7 @@ lfc src/BucklerLED.lf
 ```
 If your nRF52 does not have the Buckler board mounted on it, then:
 ```
-lfc src/BuiltInLEF.lf
+lfc src/BuiltInLED.lf
 ```
 These two programs flash three LEDs on the Buckler board and the nRF52, respectively.
 The second program also toggles a fourth LED when you push Button 1 on the board.
