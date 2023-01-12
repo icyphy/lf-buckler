@@ -9,26 +9,19 @@ echo "pwd is $(pwd)"
 
 # Copy the lib directory.
 cp -r $PROJECT_ROOT/lib/* $LF_SOURCE_GEN_DIRECTORY/lib
-# Copy makefile
-cp $PROJECT_ROOT/platform/Makefile $LF_SOURCE_GEN_DIRECTORY/
 
 # TODO Push into reactor-c
 cp $PROJECT_ROOT/platform/lf_types.h $LF_SOURCE_GEN_DIRECTORY/include/core/
 rm $LF_SOURCE_GEN_DIRECTORY/lib/util.c
 
 printf '
+# Makefile
 PROJECT_ROOT = %s
-NRF_BASE_DIR = $(PROJECT_ROOT)/buckler/software/nrf52x-base/
-
-# Include board Makefile (if any)
-include $(PROJECT_ROOT)/boards/lf_buckler_revC/Board.mk
-
-# Include main Makefile
-include $(PROJECT_ROOT)/buckler/software/nrf52x-base/make/AppMakefile.mk
+############
 ' $PROJECT_ROOT >> $LF_SOURCE_GEN_DIRECTORY/Makefile
+cat $PROJECT_ROOT/platform/Makefile >> $LF_SOURCE_GEN_DIRECTORY/Makefile
 
-
-echo "Copied $LF_SOURCE_GEN_DIRECTORY/Makefile"
+echo "Makefile Generated"
 
 cd $LF_SOURCE_GEN_DIRECTORY
 make flash

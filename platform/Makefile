@@ -52,3 +52,11 @@ override CFLAGS += -DINITIAL_REACT_QUEUE_SIZE=10
 APP_HEADER_PATHS += .
 APP_SOURCE_PATHS += .
 APP_SOURCES += $(notdir $(wildcard ./*.c))
+
+NRF_BASE_DIR = $(PROJECT_ROOT)/buckler/software/nrf52x-base/
+
+# Include board Makefile (if any)
+include $(PROJECT_ROOT)/boards/lf_buckler_revC/Board.mk
+
+# Include main Makefile
+include $(PROJECT_ROOT)/buckler/software/nrf52x-base/make/AppMakefile.mk
