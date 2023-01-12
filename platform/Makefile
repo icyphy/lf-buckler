@@ -5,7 +5,6 @@
 
 # nRF application makefile
 PROJECT_NAME = $(shell basename "$(realpath ./)")
-NRF_BASE_DIR = ../../buckler/software/nrf52x-base/
 
 # Configurations
 NRF_IC = nrf52832
@@ -53,9 +52,3 @@ override CFLAGS += -DINITIAL_REACT_QUEUE_SIZE=10
 APP_HEADER_PATHS += .
 APP_SOURCE_PATHS += .
 APP_SOURCES += $(notdir $(wildcard ./*.c))
-
-# Include board Makefile (if any)
-include ../../boards/lf_buckler_revC/Board.mk
-
-# Include main Makefile
-include ../../buckler/software/nrf52x-base/make/AppMakefile.mk
