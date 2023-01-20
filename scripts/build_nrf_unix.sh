@@ -11,7 +11,6 @@ echo "pwd is $(pwd)"
 cp -r $PROJECT_ROOT/lib/* $LF_SOURCE_GEN_DIRECTORY/lib
 
 # TODO Push into reactor-c
-cp $PROJECT_ROOT/platform/lf_types.h $LF_SOURCE_GEN_DIRECTORY/include/core/
 rm $LF_SOURCE_GEN_DIRECTORY/lib/util.c
 
 printf '
