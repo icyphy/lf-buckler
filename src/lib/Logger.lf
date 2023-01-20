@@ -1,0 +1,64 @@
+/**
+ * Reactor to write messages to an SD card.
+ * Each instance of these reactors write to a specific file
+ * on the SD card allowing for multiple files to be written to during a run.
+ *
+ * Uses the simple_logger buckler library.
+ * @author Abhi Gundrala
+ */
+ 
+target C
+
+preamble {=
+    #include "nrfx_gpiote.h"
+    #include "nrf_gpio.h"
+
+    #include "buckler.h"
+    #include "simple_logger.h"
+    
+    // Flag to allow for multiple instances of
+    // SD card logs at once
+    bool buckler_sd_logger_initialized = false;
+
+    // Buffer for writing messages to SD card
+    char sd_log[SIMPLE_LOGGER_BUFFER_SIZE];
+=}
+
+reactor Log(file_name:string("default.log")) {
+    
+    input line:string;
+    
+    reaction(startup) {=
+        ret_code_t error_code = NRF_SUCCESS;
+        // Initialize GPIO driver
+        if (!nrfx_gpiote_is_init()) {
+            error_code = nrfx_gpiote_init();
+        }
+        APP_ERROR_CHECK(error_code);
+        if (buckler_sd_logger_initialized!) {
+            // Configure GPIO
+            nrf_gpio_cfg_output(BUCKLER_SD_ENABLE);
+            nrf_gpio_cfg_output(BUCKLER_SD_CS);
+            nrf_gpio_cfg_output(BUCKLER_SD_MOSI);
+            nrf_gpio_cfg_output(BUCKLER_SD_SCLK);
+            nrf_gpio_cfg_input(BUCKLER_SD_MISO, NRF_GPIO_PIN_NOPULL);
+            // Set SD SPI enable and chip select
+            nrf_gpio_pin_set(BUCKLER_SD_ENABLE);
+            nrf_gpio_pin_set(BUCKLER_SD_CS);
+
+            buckler_sd_logger_initialized = true;
+        }
+
+        // Start file
+        const char permissions[] = "a";
+        simple_logger_init(self->file_name, permissions);
+        simple_logger_log_header("HEADER"); 
+    =}
+
+    reaction(line) {= 
+        snprintf(sd_log, SIMPLE_LOGGER_BUFFER_SIZE, "%s", line->value);
+        // TODO: time for time stamp
+        simple_logger_log(sd_log);
+    =}
+
+}

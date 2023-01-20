@@ -1,0 +1,25 @@
+target C {
+    build: "../scripts/build_nrf_unix.sh",
+    threading: false,
+}
+
+import Log from "../src/lib/Log.lf"
+
+main reactor {
+    timer t(0, 500 msec)
+    ledger = new Log("hello.log")
+
+    reaction(t) {=
+        static char x[SIMPLE_LOGGER_BUFFER_SIZE];
+
+        // get time
+        interval_t lt = lf_time_logical_elapsed();
+        interval_t pt = lf_time_physical_elapsed();
+        snprintf(x, SIMPLE_LOGGER_BUFFER_SIZE,
+            "logical time: %lld, physical time: %lld, lag: %lld\n",
+            lt, pt, pt-lt
+        );
+        
+        lf_set(ledger.message, x);
+    =}
+}
