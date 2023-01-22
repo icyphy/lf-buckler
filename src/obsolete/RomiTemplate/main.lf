@@ -90,14 +90,14 @@ reactor Loop {
             // initialize Kobuki
             kobukiInit();
             printf("Kobuki initialized!\n");
-            SET_MODE(LOOP);
+            lf_set_mode(LOOP);
         =}
     }
 
     mode LOOP {
         // timed invocation of next logical iteration
         reaction(t) -> clck {=
-            SET(clck, 1);
+            lf_set(clck, 1);
         =}
     }
 

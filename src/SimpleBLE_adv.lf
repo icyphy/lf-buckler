@@ -79,7 +79,7 @@ reactor Board {
             simple_ble_adv_only_name();
 
             if (error_code == NRF_SUCCESS) {
-                SET_MODE(LOOP);                
+                lf_set_mode(LOOP);
             }
         =}
     }
@@ -104,6 +104,6 @@ main reactor {
     timer t(0, 50 msec);
     board = new Board();
     reaction(t) -> board.clck {=
-        SET(board.clck, 1);
+        lf_set(board.clck, 1);
     =}
 }

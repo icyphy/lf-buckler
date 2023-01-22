@@ -140,7 +140,7 @@ reactor Robot {
             kobukiInit();
             printf("Kobuki initialized!\n");
             if (error_code == NRF_SUCCESS) {
-                SET_MODE(OFF);                
+                lf_lf_set_mode(OFF);                
             }
         =}
     }
@@ -178,16 +178,16 @@ reactor Robot {
         =}
         // multi key precedence
         reaction(up) -> FORWARD {=
-            SET_MODE(FORWARD);
+            lf_set_mode(FORWARD);
         =}
         reaction(down) -> BACKWARD {=
-            SET_MODE(BACKWARD);
+            lf_set_mode(BACKWARD);
         =}
         reaction(left) -> TURN_LEFT {=
-            SET_MODE(TURN_LEFT);
+            lf_set_mode(TURN_LEFT);
         =}
         reaction(right) -> TURN_RIGHT {=
-            SET_MODE(TURN_RIGHT);
+            lf_set_mode(TURN_RIGHT);
         =}
     }
     mode FORWARD {
@@ -197,10 +197,10 @@ reactor Robot {
             kobukiDriveDirect(60, 60);
         =}
         reaction(up) -> FORWARD {=
-            SET_MODE(FORWARD);
+            lf_set_mode(FORWARD);
         =}
         reaction(none) -> OFF {=
-            SET_MODE(OFF);
+            lf_set_mode(OFF);
         =}
     }
     mode BACKWARD {
@@ -210,10 +210,10 @@ reactor Robot {
             kobukiDriveDirect(-60, -60);
         =}
         reaction(down) -> BACKWARD {=
-            SET_MODE(BACKWARD);
+            lf_set_mode(BACKWARD);
         =}
          reaction(none) -> OFF {=
-            SET_MODE(OFF);
+            lf_set_mode(OFF);
         =}
     }
     mode TURN_LEFT {
@@ -223,10 +223,10 @@ reactor Robot {
             kobukiDriveDirect(-60, 60);
         =}
         reaction(left) -> TURN_LEFT {=
-            SET_MODE(TURN_LEFT);
+            lf_set_mode(TURN_LEFT);
         =}
          reaction(none) -> OFF {=
-            SET_MODE(OFF);
+            lf_set_mode(OFF);
         =}
     }
     mode TURN_RIGHT {
@@ -236,10 +236,10 @@ reactor Robot {
             kobukiDriveDirect(60, -60);
         =}
         reaction(right) -> TURN_RIGHT {=
-            SET_MODE(TURN_RIGHT);
+            lf_set_mode(TURN_RIGHT);
         =}
          reaction(none) -> OFF {=
-            SET_MODE(OFF);
+            lf_set_mode(OFF);
         =}
     }
 }
@@ -248,6 +248,6 @@ main reactor {
     timer t(1 sec, 10 msec);
     robo = new Robot();
     reaction(t) -> robo.clck {=
-        SET(robo.clck, 1);
+        lf_set(robo.clck, 1);
     =}
 }

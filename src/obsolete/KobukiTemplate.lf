@@ -91,7 +91,7 @@ reactor Robot {
             kobukiInit();
             printf("Kobuki initialized!\n");
             if (error_code == NRF_SUCCESS) {
-                SET_MODE(OFF);                
+                lf_set_mode(OFF);                
             }
         =}
     }
@@ -125,6 +125,6 @@ main reactor {
     timer t(1 sec, 10 msec);
     robot = new Robot();
     reaction(t) -> robot.clck {=
-        SET(robot.clck, 1);
+        lf_set(robot.clck, 1);
     =}
 }

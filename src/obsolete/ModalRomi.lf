@@ -84,7 +84,7 @@ reactor Init {
         // initialize Kobuki
         kobukiInit();
         printf("Kobuki initialized!\n");
-        SET(err_out, error_code);
+        lf_set(err_out, error_code);
     =}
 }
 
@@ -94,7 +94,7 @@ reactor Robot {
         reaction(clck) -> DRIVE {=
             kobukiSensorPoll(&sensors);
             if (is_button_pressed(&sensors)) {
-                SET_MODE(DRIVE);
+                lf_set_mode(DRIVE);
             } else {
                 display_write("OFF", DISPLAY_LINE_0);
                 kobukiDriveDirect(0, 0);
@@ -105,7 +105,7 @@ reactor Robot {
         reaction(clck) -> OFF {=
             kobukiSensorPoll(&sensors);
             if (is_button_pressed(&sensors)) {
-                SET_MODE(OFF);
+                lf_set_mode(OFF);
             } else {
                 display_write("DRIVE", DISPLAY_LINE_0);
                 kobukiDriveDirect(DRV_POWER, DRV_POWER);
@@ -126,7 +126,7 @@ main reactor {
         self->err = initialize.err_out->value;
     =}
     reaction(t) -> robot.clck {=
-        SET(robot.clck, self->err);
+        lf_set(robot.clck, self->err);
     =}
 
 }

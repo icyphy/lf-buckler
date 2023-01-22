@@ -46,12 +46,12 @@ reactor Sensor {
     // 
     reaction(poll) -> btn {=
         if (is_button_pressed(&(sensors))) {
-            SET(btn, 1);
+            lf_set(btn, 1);
         }
     =}
     reaction(poll) -> dist {=
         temp = measure_distance(sensors.leftWheelEncoder, self->start_encoder);
-        SET(dist, temp);
+        lf_set(dist, temp);
         // display distance state
         char buf[16];
         snprintf(buf, 16, "%f", distance->value);
@@ -77,7 +77,7 @@ reactor States {
         =}
         // 
         reaction(btn) -> DRIVE {=
-            SET_MODE(DRIVE);
+            lf_set_mode(DRIVE);
         =}
     }
     mode DRIVE {
@@ -86,7 +86,7 @@ reactor States {
             kobukiDriveDirect(60, 60);
         =}
         reaction(btn) -> OFF {=
-            SET_MODE(OFF);
+            lf_set_mode(OFF);
         =}
     }
 

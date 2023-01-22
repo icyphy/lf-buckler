@@ -81,6 +81,6 @@ reactor Init {
         // initialize Kobuki
         kobukiInit();
         printf("Kobuki initialized!\n");
-        SET(err_out, error_code);
+        lf_set(err_out, error_code);
     =}
 }
