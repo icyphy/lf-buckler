@@ -1,8 +1,3 @@
-# TODO
-# lf_types.h needs header change from "modes.h" to "modal_models/modes.h" due to conflicting header in sdk
-# find ways to keep priority
-# delete deprecated util.c in lib 
-
 # nRF application makefile
 PROJECT_NAME = $(shell basename "$(realpath ./)")
 

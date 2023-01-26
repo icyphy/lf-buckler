@@ -10,9 +10,6 @@ echo "pwd is $(pwd)"
 # Copy the lib directory.
 cp -r $PROJECT_ROOT/lib/* $LF_SOURCE_GEN_DIRECTORY/lib
 
-# TODO Push into reactor-c
-rm $LF_SOURCE_GEN_DIRECTORY/lib/util.c
-
 printf '
 # Makefile
 PROJECT_ROOT = %s
